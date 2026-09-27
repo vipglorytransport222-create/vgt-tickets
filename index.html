@@ -987,7 +987,20 @@
   var AUTH_USER = "Glory VIP";
   var AUTH_PASS = "1234567890";
   var GUEST_PASS = "1234567890";
-  var AUTH_KEY = "vgt_auth_mode_v1"; // "full" | "guest", remembered per device
+  // "full" | "guest", remembered per device — but only for as long as
+  // there's been recent activity. AUTH_ACTIVITY_KEY holds the timestamp of
+  // the last tap/keypress/scroll; if too much time has passed since then
+  // (whether because the app sat open and idle, or was actually closed and
+  // reopened later), the saved login is treated as expired and the login
+  // page shows again. This is deliberately NOT sessionStorage — phones
+  // (Android Chrome especially) often "restore" a closed tab's session
+  // storage when reopening it to avoid losing unsaved work, so a plain
+  // sessionStorage-based login doesn't reliably ask again on a real phone.
+  // A timestamp in localStorage, checked against the clock, doesn't have
+  // that problem.
+  var AUTH_KEY = "vgt_auth_mode_v1";
+  var AUTH_ACTIVITY_KEY = "vgt_auth_last_active_v1";
+  var AUTH_IDLE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes of inactivity -> logged out
   var appEl = document.querySelector(".app");
   var entryPanel = document.querySelector(".entry-panel");
   var pickupAddEl = document.querySelector(".pickup-add");
@@ -1006,10 +1019,36 @@
   var loginLoadingText = document.getElementById("loginLoadingText");
   var switchModeBtn = document.getElementById("switchModeBtn");
 
+  // True once we've decided (at this page-load) that a remembered login had
+  // gone stale and been cleared, so openLoginPage() can say why.
+  var authExpiredOnLoad = false;
   function loadAuthMode(){
-    try{ var m = localStorage.getItem(AUTH_KEY); return (m === "full" || m === "guest") ? m : null; }catch(e){ return null; }
+    try{
+      var m = localStorage.getItem(AUTH_KEY);
+      if(m !== "full" && m !== "guest") return null;
+      var last = Number(localStorage.getItem(AUTH_ACTIVITY_KEY) || 0);
+      if(!last || (Date.now() - last) > AUTH_IDLE_LIMIT_MS){
+        localStorage.removeItem(AUTH_KEY);
+        localStorage.removeItem(AUTH_ACTIVITY_KEY);
+        authExpiredOnLoad = true;
+        return null;
+      }
+      return m;
+    }catch(e){ return null; }
   }
-  function saveAuthMode(mode){ try{ localStorage.setItem(AUTH_KEY, mode); }catch(e){} }
+  function saveAuthMode(mode){
+    try{
+      localStorage.setItem(AUTH_KEY, mode);
+      localStorage.setItem(AUTH_ACTIVITY_KEY, String(Date.now()));
+    }catch(e){}
+  }
+  // Bumps the "last active" clock — called on real user activity (taps,
+  // typing, scrolling) and right after logging in. Only matters while
+  // logged in; harmless (and skipped) otherwise.
+  function touchAuthActivity(){
+    if(!authMode) return;
+    try{ localStorage.setItem(AUTH_ACTIVITY_KEY, String(Date.now())); }catch(e){}
+  }
   var authMode = loadAuthMode();
   function isGuest(){ return authMode === "guest"; }
 
@@ -1067,7 +1106,8 @@
     if(appEl) appEl.style.display = "";
   }
   function openLoginPage(allowBack){
-    loginError.textContent = "";
+    loginError.textContent = authExpiredOnLoad ? "You were logged out after a few minutes of inactivity. Please log in again." : "";
+    authExpiredOnLoad = false;
     guestError.textContent = "";
     loginUser.value = "";
     loginPass.value = "";
@@ -1152,21 +1192,55 @@
   // Pressing "Mode" logs the device out immediately (clearing the
   // remembered mode) and shows the login page with no Back option, so
   // getting back in always requires re-entering credentials.
-  function logOut(){
+  function logOut(reason){
     // Same small loading beat as logging in, so this doesn't just snap
     // back to the login form instantly either.
     loginPage.hidden = false;
     if(appEl) appEl.style.display = "none";
     loginBackBtn.hidden = true;
-    showLoginLoading("Logging out…");
+    showLoginLoading(reason === "idle" ? "Logging out — inactive…" : "Logging out…");
     setTimeout(function(){
       authMode = null;
-      try{ localStorage.removeItem(AUTH_KEY); }catch(e){}
+      try{ localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_ACTIVITY_KEY); }catch(e){}
+      if(reason === "idle") authExpiredOnLoad = true; // makes openLoginPage show the "why" message
       applyAuthMode();
       openLoginPage(false); // resets the fields, hides the spinner, focuses username
     }, 400);
   }
-  switchModeBtn.addEventListener("click", logOut);
+  switchModeBtn.addEventListener("click", function(){ logOut(); });
+
+  // ---- auto logout after a few minutes of inactivity ----
+  // Any real tap/keypress/scroll resets the clock (throttled so this isn't
+  // hitting localStorage on every pixel of scrolling). A periodic check
+  // while the app is open, PLUS a check the instant the tab/app comes back
+  // to the foreground, catches both "sat open and idle" and "was actually
+  // closed/backgrounded and reopened later" — see the note by AUTH_KEY for
+  // why this is timestamp-based rather than relying on the browser to
+  // forget a closed tab's session on its own.
+  var lastActivityTouch = 0;
+  function onUserActivity(){
+    if(!authMode) return;
+    var now = Date.now();
+    if(now - lastActivityTouch < 5000) return; // throttle to at most once/5s
+    lastActivityTouch = now;
+    touchAuthActivity();
+  }
+  ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function(evt){
+    document.addEventListener(evt, onUserActivity, { passive: true });
+  });
+  function checkIdleLogout(){
+    if(!authMode) return;
+    try{
+      var last = Number(localStorage.getItem(AUTH_ACTIVITY_KEY) || 0);
+      if(!last || (Date.now() - last) > AUTH_IDLE_LIMIT_MS){
+        logOut("idle");
+      }
+    }catch(e){}
+  }
+  setInterval(checkIdleLogout, 15000);
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible") checkIdleLogout();
+  });
 
   // ---- Stage 2: one-way sync to the Google Sheet (device -> Sheet) ----
   // Every sale, pickup, status change, fare edit and cancellation is queued
