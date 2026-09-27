@@ -663,6 +663,27 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="removePickupModalOverlay" hidden>
+    <div class="modal-box" role="alertdialog" aria-modal="true">
+      <div class="modal-title">⚠ Remove this pickup rider?</div>
+      <div class="modal-body" id="removePickupModalBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" id="removePickupModalCancel">Keep it</button>
+        <button type="button" class="modal-btn modal-btn-danger" id="removePickupModalConfirm">Yes, remove</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="infoModalOverlay" hidden>
+    <div class="modal-box" role="alertdialog" aria-modal="true">
+      <div class="modal-title" id="infoModalTitle">Notice</div>
+      <div class="modal-body" id="infoModalBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-danger" id="infoModalOk">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div class="active-bus-banner" id="activeBusBanner"></div>
 
   <div class="layout">
@@ -1617,6 +1638,21 @@
     return out;
   }
 
+  // If a ticket was sold before the bus's plate number was known (bus not
+  // yet arrived), its busNo is left blank at sale time. Rather than staying
+  // blank forever, such a ticket "live-follows" whatever plate is currently
+  // set for its bus slot/date — on screen (the All Travellers log) and on
+  // reprints — so filling in the plate later fills it in everywhere, and
+  // clearing the plate later blanks it out again. A ticket sold WITH a
+  // plate typed in keeps exactly what was typed, even if that plate is
+  // later changed for other tickets.
+  function effectiveBusNo(t){
+    if(t.busNo) return t.busNo;
+    if(typeof t.busSlot !== "number") return "";
+    var list = ensureBusesForDate(t.date);
+    return list[t.busSlot] || "";
+  }
+
   // Driver names, one per bus slot per date — kept alongside busesStore
   // (same keying, same seed-empty-if-missing pattern) so "First bus" on a
   // given day can carry a driver's name without guessing from the plate
@@ -1998,7 +2034,7 @@
       '<div class="t-rows">' +
         row("Passenger", t.name) +
         row("Date", fmtDateSlash(t.date)) +
-        row("Bus no.", t.busNo || "—") +
+        row("Bus no.", effectiveBusNo(t) || "—") +
         row("Seat no.", t.seatNo || "—") +
         row("Fare", fmtMoney(t.fare)) +
       '</div>' +
@@ -2271,7 +2307,7 @@
     }).map(function(t){
       return {
         kind: "ticket", id: t.id, time: t.time, ticketNo: t.ticketNo, name: t.name,
-        where: t.from + " → " + t.to, phone: t.phone || "", bus: t.busNo || "—", seat: (t.seatNo || "").trim(),
+        where: t.from + " → " + t.to, phone: t.phone || "", bus: effectiveBusNo(t) || "—", seat: (t.seatNo || "").trim(),
         fare: t.fare, paid: t.paid !== false, moneySent: !!t.moneySent, createdAt: t.createdAt
       };
     });
@@ -2900,6 +2936,60 @@
     else { cancelTicket(cancelTicketId); closeCancelTicketModal(); }
   });
 
+  // A quick "are you sure" before actually removing an unpaid pickup
+  // reservation (e.g. the passenger decided not to travel from that point)
+  // — a single prompt is enough here since, unlike cancelling a sold
+  // ticket, nothing has been paid for yet; it just guards against an
+  // accidental tap on the ✕ button.
+  var removePickupModalOverlay = document.getElementById("removePickupModalOverlay");
+  var removePickupModalBody = document.getElementById("removePickupModalBody");
+  var removePickupModalCancel = document.getElementById("removePickupModalCancel");
+  var removePickupModalConfirm = document.getElementById("removePickupModalConfirm");
+  var removePickupPendingDay = null;
+  var removePickupPendingId = null;
+
+  function closeRemovePickupModal(){
+    removePickupModalOverlay.hidden = true;
+    removePickupPendingDay = null;
+    removePickupPendingId = null;
+  }
+  function showRemovePickupModal(day, id){
+    var p = findPickup(day, id);
+    if(!p){ return; }
+    removePickupPendingDay = day;
+    removePickupPendingId = id;
+    var who = (p.name || p.place || "this rider") + (p.seatNo ? " — seat " + p.seatNo : "");
+    removePickupModalBody.textContent = "Remove " + who + " from the pickup list?\n\nOnly do this if they're genuinely not travelling — this can't be undone.";
+    removePickupModalOverlay.hidden = false;
+  }
+  removePickupModalCancel.addEventListener("click", closeRemovePickupModal);
+  removePickupModalOverlay.addEventListener("click", function(e){
+    if(e.target === removePickupModalOverlay) closeRemovePickupModal();
+  });
+  removePickupModalConfirm.addEventListener("click", function(){
+    if(removePickupPendingId){ removePickupEntry(removePickupPendingDay, removePickupPendingId); }
+    closeRemovePickupModal();
+  });
+
+  // A tiny one-button "notice" modal for messages that just need
+  // acknowledging (e.g. "fill in the fare first") — native alert() doesn't
+  // reliably show inside the artifact's sandboxed frame (see the reset-day
+  // comment above), so this mirrors the same in-page modal pattern.
+  var infoModalOverlay = document.getElementById("infoModalOverlay");
+  var infoModalTitle = document.getElementById("infoModalTitle");
+  var infoModalBody = document.getElementById("infoModalBody");
+  var infoModalOk = document.getElementById("infoModalOk");
+  function showInfoModal(title, body){
+    infoModalTitle.textContent = title;
+    infoModalBody.textContent = body;
+    infoModalOverlay.hidden = false;
+  }
+  function closeInfoModal(){ infoModalOverlay.hidden = true; }
+  infoModalOk.addEventListener("click", closeInfoModal);
+  infoModalOverlay.addEventListener("click", function(e){
+    if(e.target === infoModalOverlay) closeInfoModal();
+  });
+
   // The seat-box count follows the day's traveller total for the chosen
   // bus SLOT (tickets + pickups) automatically. Typing a number into the
   // field by hand switches it to manual for the rest of this date, so it
@@ -3076,6 +3166,11 @@
       where: "-",
       phone: t.phone || "-",
       bus: busVal || "-",
+      // Tells the Sheet this ticket's Bus cell should live-follow whatever
+      // plate later gets set for this bus/date — same "follow" behavior as
+      // the app's own log/print view — so filling in the plate afterwards
+      // updates this row on the Sheet too, not just the block's heading.
+      busFollows: !busVal,
       driver: (ensureDriversForDate(date)[slot] || "").trim(),
       capacity: getCapacityFor(date, slot) || 0,
       fare: t.fare,
@@ -3239,14 +3334,31 @@
         return;
       }
       var day = logDate.value || todayStr();
-      togglePickupPaid(day, paidBtn.getAttribute("data-pickup-id"));
+      var pid = paidBtn.getAttribute("data-pickup-id");
+      var p = findPickup(day, pid);
+      // Marking a pickup rider's fare as "sent" only makes sense once the
+      // fare is actually filled in — otherwise it's too easy to mark
+      // someone sent and forget to ever record what they owe. Turning
+      // "Sent" back OFF needs no such check.
+      if(p && !p.paid){
+        var fareCell = paidBtn.closest(".pk-fare-cell");
+        var fareInput = fareCell ? fareCell.querySelector(".pk-fare-input") : null;
+        var fareVal = fareInput ? parseFloat(fareInput.value) : p.fare;
+        if(isNaN(fareVal) || fareVal <= 0){
+          showInfoModal("Fare needed", "Please fill in the fare for this pickup rider before marking it as sent.");
+          if(fareInput) fareInput.focus();
+          return;
+        }
+        if(fareInput && fareVal !== p.fare) setPickupFare(day, pid, fareVal);
+      }
+      togglePickupPaid(day, pid);
       renderLog();
       return;
     }
     var btn = e.target.closest(".reprint-btn");
     if(!btn) return;
     var pickupId = btn.getAttribute("data-pickup-id");
-    if(pickupId){ removePickupEntry(logDate.value || todayStr(), pickupId); return; }
+    if(pickupId){ showRemovePickupModal(logDate.value || todayStr(), pickupId); return; }
     var id = btn.getAttribute("data-id");
     var t = data.tickets.find(function(x){ return x.id === id; });
     if(t){ printHtml('<div class="ticket-card">' + ticketMarkup(t) + '</div>'); }
@@ -3264,7 +3376,7 @@
     var day = logDate.value || todayStr();
     var ticketLines = data.tickets.filter(function(t){ return t.date === day && t.route === currentRoute; }).map(function(t){
       var status = t.moneySent ? "Sent" : (t.paid === false ? "Not paid" : "Paid");
-      return ["Ticket", t.ticketNo, t.time, csvSafe(t.name), csvSafe(t.from + " to " + t.to), csvSafe(t.phone || ""), csvSafe(t.busNo), csvSafe(t.seatNo), t.fare, status].join(",");
+      return ["Ticket", t.ticketNo, t.time, csvSafe(t.name), csvSafe(t.from + " to " + t.to), csvSafe(t.phone || ""), csvSafe(effectiveBusNo(t)), csvSafe(t.seatNo), t.fare, status].join(",");
     });
     var pickupLines = pickupsForDate(day).map(function(p){
       return ["Pickup", (p.ticketNo || "—"), p.time, csvSafe(p.name), csvSafe(p.place), csvSafe(p.phone || ""), csvSafe(p.bus || "—"), csvSafe(p.seatNo), (p.fare != null ? p.fare : ""), (p.paid ? "Sent" : "")].join(",");
@@ -3329,6 +3441,7 @@
   fName.focus();
 })();
 </script>
+
 <script>
   // Registers the offline/installable-app support (manifest.json + service-worker.js).
   // Safe to no-op if the browser doesn't support it or the file is opened
