@@ -1,0 +1,17 @@
+{
+  "name": "VIP Glory Tickets",
+  "short_name": "VGT Tickets",
+  "description": "Ticketing app for VIP Glory Transport / Glory Co-Operative Transport Society",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#7d1712",
+  "theme_color": "#b3221d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
