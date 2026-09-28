@@ -6,7 +6,7 @@
 // This only makes the app itself (the page you see) load instantly and
 // work even with a weak or momentarily dropped connection.
 
-const CACHE_NAME = 'vgt-tickets-v1';
+const CACHE_NAME = 'vgt-tickets-v2';
 const APP_SHELL = [
   './',
   './index.html',
