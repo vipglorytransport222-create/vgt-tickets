@@ -1410,6 +1410,7 @@
   var SYNC_TOKEN = "icedeJ@neral222";
   var syncBanner = document.getElementById("syncBanner");
   var syncBannerText = document.getElementById("syncBannerText");
+  var SYNC_QUEUE_STORAGE_KEY = "vgt_sync_queue_v1";
   var syncQueue = [];
   var syncBusy = false;
   var syncDebounceTimer = null;
@@ -1446,12 +1447,24 @@
     requestAnimationFrame(function(){ syncBanner.classList.add("show"); });
   }
 
+  // The queue is also mirrored to localStorage on every change, so that if
+  // the app is closed (or the phone locks/kills the tab) while some changes
+  // are still waiting to reach the Sheet — e.g. offline for a while, doing
+  // several sales/edits/cancellations, then closing before a connection
+  // ever came back — those pending changes aren't lost. They're restored
+  // and retried automatically the next time the app opens (see
+  // restorePendingSyncQueue below), instead of silently staying local-only.
+  function saveSyncQueueToStorage(){
+    try{ localStorage.setItem(SYNC_QUEUE_STORAGE_KEY, JSON.stringify(syncQueue)); }catch(e){}
+  }
+
   // Queues one change to push to the Sheet. Several changes made within a
   // fraction of a second (e.g. selling tickets back-to-back) are batched
   // into a single flush rather than firing one request per click.
   function queueSync(payload){
     payload.token = SYNC_TOKEN;
     syncQueue.push(payload);
+    saveSyncQueueToStorage();
     showSyncBanner("syncing");
     if(syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(flushSyncQueue, 500);
@@ -1485,6 +1498,7 @@
       var item = syncQueue[0];
       postToSheet(item).then(function(){
         syncQueue.shift();
+        saveSyncQueueToStorage();
         sendNext();
       }).catch(function(){
         // Leave the failed item at the front of the queue and retry
@@ -1497,6 +1511,26 @@
       });
     }
   }
+
+  // On every app start, pick up any changes that were queued but never made
+  // it to the Sheet last time (closed the app while offline, phone died,
+  // tab got killed, etc.) and resume trying to send them, in the same
+  // order they were made, exactly as if the app had stayed open the whole
+  // time. Nothing here touches this device's own local data — that was
+  // already saved the moment each action happened — this only restores the
+  // outgoing queue to the Sheet.
+  (function restorePendingSyncQueue(){
+    try{
+      var raw = localStorage.getItem(SYNC_QUEUE_STORAGE_KEY);
+      if(!raw) return;
+      var restored = JSON.parse(raw);
+      if(Array.isArray(restored) && restored.length){
+        syncQueue = restored;
+        showSyncBanner("offline", "Resuming " + restored.length + " unsent change" + (restored.length === 1 ? "" : "s") + "…");
+        flushSyncQueue();
+      }
+    }catch(e){}
+  })();
 
   // Manual "Sync now" button on the main (full-access) ticket-selling page.
   // Purely a convenience for confirming things are up to date — it forces
