@@ -6,7 +6,7 @@
 // This only makes the app itself (the page you see) load instantly and
 // work even with a weak or momentarily dropped connection.
 
-const CACHE_NAME = 'vgt-tickets-v2';
+const CACHE_NAME = 'vgt-tickets-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -43,6 +43,32 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname.includes('script.google.com') || url.hostname.includes('googleusercontent.com')) return;
   if (url.origin !== self.location.origin) return;
 
+  // The app's own page (index.html / a plain navigation) is the one file
+  // that changes whenever an update is shipped — so it needs to check the
+  // network FIRST every time, and only fall back to the saved offline copy
+  // if there's genuinely no connection. This is what actually fixes "I
+  // uploaded a new index.html but the app still shows the old one" — with
+  // the old cache-first approach, a page already open (or just reloaded)
+  // could keep showing a saved copy indefinitely, however many times it's
+  // reloaded, until the service worker file itself happened to change too.
+  const isAppPage = req.mode === 'navigate' ||
+    url.pathname === '/' || url.pathname.endsWith('/index.html');
+
+  if (isAppPage) {
+    event.respondWith(
+      fetch(req).then((resp) => {
+        if (resp && resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        }
+        return resp;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Everything else (icons, manifest — rarely changes) stays cache-first
+  // for an instant load, refreshing the cached copy in the background.
   event.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req).then((resp) => {
