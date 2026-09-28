@@ -117,6 +117,35 @@
     letter-spacing:.02em; cursor:pointer; white-space:nowrap;
   }
   .reset-all-btn:hover{ background:rgba(0,0,0,.32); border-color:#fdf3e4; }
+  .stats-btn{
+    flex:0 0 auto; background:rgba(0,0,0,.18); border:1px solid rgba(253,243,228,.55); color:#fdf3e4;
+    padding:9px 14px; border-radius:9px; font-family:'Inter'; font-size:.78rem; font-weight:700;
+    letter-spacing:.02em; cursor:pointer; white-space:nowrap;
+  }
+  .stats-btn:hover{ background:rgba(0,0,0,.32); border-color:#fdf3e4; }
+
+  /* ---- stats modal ---- */
+  .stats-section{ margin-bottom:16px; }
+  .stats-section:last-child{ margin-bottom:0; }
+  .stats-section h3{
+    font-family:'Oswald'; font-size:.82rem; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); margin:0 0 8px;
+  }
+  .stats-cards{ display:flex; gap:10px; flex-wrap:wrap; }
+  .stats-card{
+    flex:1 1 100px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+    padding:10px 12px; text-align:center;
+  }
+  .stats-card .stats-num{ font-family:'Oswald'; font-size:1.15rem; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stats-card .stats-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:2px; }
+  .stats-route-row, .stats-day-row{
+    display:flex; justify-content:space-between; align-items:center; padding:6px 0;
+    border-bottom:1px dashed var(--border); font-size:.88rem;
+  }
+  .stats-route-row:last-child, .stats-day-row:last-child{ border-bottom:none; }
+  .stats-route-name, .stats-day-name{ font-weight:600; }
+  .stats-route-figures, .stats-day-figures{ font-variant-numeric:tabular-nums; color:var(--muted); }
+  .stats-busiest{ font-size:.8rem; color:var(--muted); margin-top:6px; }
   .global-date-bar{
     flex:0 0 auto; display:flex; align-items:center; gap:8px;
     background:rgba(0,0,0,.18); border:1px solid rgba(253,243,228,.55); color:#fdf3e4;
@@ -399,6 +428,12 @@
   .btn-print:disabled{opacity:.5; cursor:not-allowed;}
   .btn-print:not(:disabled):hover{border-color:var(--red); color:var(--red);}
 
+  .count-badge{
+    display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px;
+    padding:0 5px; margin-left:6px; border-radius:999px; background:var(--red); color:#fff;
+    font-size:.7rem; font-weight:700; font-variant-numeric:tabular-nums; vertical-align:middle;
+  }
+
   /* ---- pickup points ---- */
   .pickup-bus-indicator{
     font-family:'Oswald',sans-serif; font-weight:700; font-size:1rem; letter-spacing:.03em;
@@ -468,6 +503,18 @@
   }
   .pk-paid-btn:hover{ border-color:var(--gold); }
   .pk-paid-btn.is-paid{ background:var(--good); border-color:var(--good); color:#fdf3e4; }
+  .pk-sent-btn{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--muted);
+    padding:6px 9px; border-radius:7px; font-size:.72rem; font-weight:600; cursor:pointer;
+    white-space:nowrap; text-transform:uppercase; letter-spacing:.02em;
+  }
+  .pk-sent-btn:hover{ border-color:var(--gold); }
+  .pk-undo-btn{
+    background:none; border:1px solid var(--border); color:var(--red);
+    padding:5px 9px; border-radius:7px; font-size:.7rem; font-weight:600; cursor:pointer;
+    white-space:nowrap; text-transform:uppercase; letter-spacing:.02em;
+  }
+  .pk-undo-btn:hover{ background:var(--red); border-color:var(--red); color:#fdf3e4; }
   .empty-row td{ text-align:center; color:var(--muted); padding:20px; white-space:normal; }
   .log-footer{ display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-family:'Oswald'; font-weight:600; letter-spacing:.02em;}
   .log-sent-footer{ margin-top:4px; padding-top:0; border-top:none; color:#2b6ea8; font-size:.85rem; justify-content:flex-start; }
@@ -686,6 +733,7 @@
         <div class="stat-label">To pick up</div>
       </div>
     </div>
+    <button id="statsBtn" type="button" class="stats-btn" title="See totals for today, this week, and by route">📊 Stats</button>
     <div class="guest-sync-bar" id="guestSyncBar" hidden>
       <span id="guestSyncText">Not yet synced</span>
       <button id="guestRefreshBtn" type="button" title="Fetch the latest from the Sheet right now">🔄 Refresh</button>
@@ -743,6 +791,16 @@
       <div class="modal-body" id="infoModalBody"></div>
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-danger" id="infoModalOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="statsModalOverlay" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true">
+      <div class="modal-title">Stats</div>
+      <div class="modal-body" id="statsModalBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-danger" id="statsModalClose">Close</button>
       </div>
     </div>
   </div>
@@ -852,6 +910,7 @@
         <span class="log-next" id="logNextSeat"></span>
         <input type="date" id="logDate">
         <button id="todayBtn" type="button">Today</button>
+        <button id="printUnprintedBtn" type="button" title="Prints every Issue Ticket entry for this date that hasn't been printed yet — skips Pickup Points and anything already printed">🖨 Print unprinted<span id="printUnprintedCount" class="count-badge" hidden></span></button>
         <button id="exportBtn" type="button">Export CSV</button>
       </div>
     </div>
@@ -1002,6 +1061,8 @@
   var logBusSelect = document.getElementById("logBusSelect");
   var todayBtn = document.getElementById("todayBtn");
   var exportBtn = document.getElementById("exportBtn");
+  var printUnprintedBtn = document.getElementById("printUnprintedBtn");
+  var printUnprintedCount = document.getElementById("printUnprintedCount");
   var guestSyncBar = document.getElementById("guestSyncBar");
   var guestSyncText = document.getElementById("guestSyncText");
   var guestRefreshBtn = document.getElementById("guestRefreshBtn");
@@ -1018,6 +1079,10 @@
   var logSentInfo = document.getElementById("logSentInfo");
   var todayCount = document.getElementById("todayCount");
   var todayTotal = document.getElementById("todayTotal");
+  var statsBtn = document.getElementById("statsBtn");
+  var statsModalOverlay = document.getElementById("statsModalOverlay");
+  var statsModalBody = document.getElementById("statsModalBody");
+  var statsModalClose = document.getElementById("statsModalClose");
   var pickupSeat = document.getElementById("pickupSeat");
   var pickupPhone = document.getElementById("pickupPhone");
   var pickupAddRow3 = document.getElementById("pickupAddRow3");
@@ -1168,6 +1233,8 @@
     }
     pickupAddEl.hidden = guest;
     resetAllBtn.hidden = guest;
+    if(printUnprintedBtn) printUnprintedBtn.hidden = guest;
+    if(statsBtn) statsBtn.hidden = guest;
     if(guestSyncBar) guestSyncBar.hidden = !guest;
     if(fullSyncBar) fullSyncBar.hidden = guest;
     if(guestLogHint) guestLogHint.hidden = !guest;
@@ -2270,6 +2337,119 @@
       .reduce(function(s,t){ return s + Number(t.fare||0); }, 0));
   }
 
+  // ---- Stats modal ----
+  // Reads the same ticket data already sitting in this device's storage
+  // (nothing new is tracked) and adds it up into a few simple totals: today,
+  // the last 7 days, a per-route split, and a day-by-day count — so there's
+  // somewhere to see the numbers without opening the Google Sheet. Only
+  // meaningful for full access (this device's own recorded sales); guest
+  // mode only ever has one day/route loaded at a time from the Sheet, not
+  // a week's worth, so the button stays hidden there.
+  // "Collected" here uses the same rule as the "Collected" figure already
+  // shown up top: paid, and not sent by mobile money (i.e. physically in
+  // the till) — not simply every ticket's fare.
+  function last7Days(){
+    var out = [];
+    for(var i = 6; i >= 0; i--){
+      var d = new Date();
+      d.setDate(d.getDate() - i);
+      out.push(d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"));
+    }
+    return out;
+  }
+
+  function fmtDayShort(day){
+    var parts = (day || "").split("-");
+    if(parts.length !== 3) return day;
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if(isNaN(d.getTime())) return day;
+    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  }
+
+  function collectedTotal(list){
+    return list.filter(function(t){ return t.paid !== false && !t.moneySent; })
+      .reduce(function(s,t){ return s + Number(t.fare||0); }, 0);
+  }
+
+  function renderStatsModal(){
+    var today = todayStr();
+    var days = last7Days();
+    var weekSet = {};
+    days.forEach(function(d){ weekSet[d] = true; });
+
+    var todays = data.tickets.filter(function(t){ return t.date === today; });
+    var weeks = data.tickets.filter(function(t){ return weekSet[t.date]; });
+
+    var routeHtml = Object.keys(ROUTES).map(function(key){
+      var rTickets = weeks.filter(function(t){ return t.route === key; });
+      return {
+        key: key,
+        label: ROUTES[key].label,
+        count: rTickets.length,
+        total: collectedTotal(rTickets)
+      };
+    });
+    var busiest = routeHtml.slice().sort(function(a,b){ return b.count - a.count; })[0];
+
+    var dayRowsHtml = days.map(function(d){
+      var dTickets = data.tickets.filter(function(t){ return t.date === d; });
+      return '<div class="stats-day-row">' +
+        '<span class="stats-day-name">' + (d === today ? "Today" : fmtDayShort(d)) + '</span>' +
+        '<span class="stats-day-figures">' + dTickets.length + ' ticket' + (dTickets.length === 1 ? "" : "s") +
+          ' · ' + fmtMoney(collectedTotal(dTickets)) + '</span>' +
+      '</div>';
+    }).join("");
+
+    var routeRowsHtml = routeHtml.map(function(r){
+      return '<div class="stats-route-row">' +
+        '<span class="stats-route-name">' + escapeHtml(r.label) + '</span>' +
+        '<span class="stats-route-figures">' + r.count + ' ticket' + (r.count === 1 ? "" : "s") +
+          ' · ' + fmtMoney(r.total) + '</span>' +
+      '</div>';
+    }).join("");
+
+    statsModalBody.innerHTML =
+      '<div class="stats-section">' +
+        '<h3>Today</h3>' +
+        '<div class="stats-cards">' +
+          '<div class="stats-card"><div class="stats-num">' + todays.length + '</div><div class="stats-label">Tickets</div></div>' +
+          '<div class="stats-card"><div class="stats-num">' + fmtMoney(collectedTotal(todays)) + '</div><div class="stats-label">Collected</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="stats-section">' +
+        '<h3>Last 7 days</h3>' +
+        '<div class="stats-cards">' +
+          '<div class="stats-card"><div class="stats-num">' + weeks.length + '</div><div class="stats-label">Tickets</div></div>' +
+          '<div class="stats-card"><div class="stats-num">' + fmtMoney(collectedTotal(weeks)) + '</div><div class="stats-label">Collected</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="stats-section">' +
+        '<h3>By route (last 7 days)</h3>' +
+        routeRowsHtml +
+        (busiest && busiest.count > 0
+          ? '<div class="stats-busiest">Busiest: ' + escapeHtml(busiest.label) + '</div>'
+          : '') +
+      '</div>' +
+      '<div class="stats-section">' +
+        '<h3>Day by day</h3>' +
+        dayRowsHtml +
+      '</div>';
+  }
+
+  function openStatsModal(){
+    renderStatsModal();
+    statsModalOverlay.hidden = false;
+  }
+  function closeStatsModal(){ statsModalOverlay.hidden = true; }
+
+  if(statsBtn){
+    statsBtn.addEventListener("click", openStatsModal);
+    statsModalClose.addEventListener("click", closeStatsModal);
+    statsModalOverlay.addEventListener("click", function(e){
+      if(e.target === statsModalOverlay) closeStatsModal();
+    });
+  }
+
   // Guest view of the log — reads whatever's cached (or currently loading)
   // for this route+date from the Sheet instead of local storage. Read-only:
   // no reprint/cancel/mark-paid buttons, since a guest can't act on any of
@@ -2378,7 +2558,7 @@
       return {
         kind: "ticket", id: t.id, time: t.time, ticketNo: t.ticketNo, name: t.name,
         where: t.from + " → " + t.to, phone: t.phone || "", bus: effectiveBusNo(t) || "—", seat: (t.seatNo || "").trim(),
-        fare: t.fare, paid: t.paid !== false, moneySent: !!t.moneySent, createdAt: t.createdAt
+        fare: t.fare, paid: t.paid !== false, moneySent: !!t.moneySent, paidViaButton: !!t.paidViaButton, createdAt: t.createdAt
       };
     });
     var pickupRows = pickupsForDate(day).filter(function(p){
@@ -2411,12 +2591,29 @@
           : '<button class="reprint-btn" data-pickup-id="' + r.id + '" title="Remove">✕</button>');
         var fareCell;
         if(r.kind === "ticket"){
-          fareCell = (r.paid || guestRow)
-            ? fmtMoney(r.fare)
-            : '<div class="pk-fare-cell">' +
+          if(guestRow){
+            fareCell = fmtMoney(r.fare);
+          } else if(!r.paid){
+            // Not paid yet — the money can come in either as cash (Mark
+            // paid) or by mobile money (Mark sent), so both are offered.
+            fareCell = '<div class="pk-fare-cell">' +
                 '<span>' + fmtMoney(r.fare) + '</span>' +
                 '<button type="button" class="pk-paid-btn" data-ticket-id="' + r.id + '">Mark paid</button>' +
+                '<button type="button" class="pk-sent-btn" data-ticket-id="' + r.id + '">Mark sent</button>' +
               '</div>';
+          } else if(r.moneySent || r.paidViaButton){
+            // Either "Money Sent" (which can turn out to never actually
+            // arrive) or a "Mark paid" tap (which could've been by
+            // accident) — both get an Undo back to Not paid. A ticket
+            // that was simply paid in cash at issue time gets no button
+            // here, since that was a deliberate, correct entry.
+            fareCell = '<div class="pk-fare-cell">' +
+                '<span>' + fmtMoney(r.fare) + '</span>' +
+                '<button type="button" class="pk-undo-btn" data-ticket-id="' + r.id + '" title="Money never actually came in? Undo back to Not paid">Undo</button>' +
+              '</div>';
+          } else {
+            fareCell = fmtMoney(r.fare);
+          }
         } else if(guestRow){
           fareCell = (r.fare != null ? fmtMoney(r.fare) : "—") + (r.paid ? ' <span class="tk-sent-badge">Sent</span>' : '');
         } else {
@@ -2475,6 +2672,69 @@
       logNextSeat.textContent = "Next seat (" + slotLabel + "): " + nextAvailableSeat(day, filterSlot);
     }
     if(mfDate && (mfDate.value || todayStr()) === day) refreshManifestSeatDefault();
+    updatePrintUnprintedCount();
+  }
+
+  // ---- bulk "print unprinted tickets" ----
+  // Counter tickets often get issued before the traveller has actually
+  // paid — the fare gets settled later, at which point the 🖨 button on
+  // that row is tapped and it prints. This button is the catch-up for
+  // whichever of those never got tapped: it finds every Issue Ticket entry
+  // for the currently-selected date/route that has never been printed
+  // (not ones already printed once) and prints them all, one after
+  // another, in the exact same full ticket format the row button uses.
+  // Pickup Points riders are never touched — those keep printing one at a
+  // time, by hand, exactly as before.
+  function unprintedTicketsForLog(){
+    var day = logDate.value || todayStr();
+    return data.tickets.filter(function(t){
+      return t.date === day && t.route === currentRoute && !t.printed;
+    }).sort(function(a,b){ return (a.createdAt || "").localeCompare(b.createdAt || ""); });
+  }
+
+  function updatePrintUnprintedCount(){
+    if(!printUnprintedBtn || !printUnprintedCount) return;
+    if(isGuest()){ printUnprintedCount.hidden = true; return; }
+    var n = unprintedTicketsForLog().length;
+    if(n > 0){
+      printUnprintedCount.textContent = String(n);
+      printUnprintedCount.hidden = false;
+    } else {
+      printUnprintedCount.hidden = true;
+    }
+  }
+
+  function printUnprintedTickets(){
+    var list = unprintedTicketsForLog();
+    if(!list.length){
+      showInfoModal("Nothing to print", "Every ticket issued for this date has already been printed.");
+      return;
+    }
+    var total = list.length;
+    var i = 0;
+    printUnprintedBtn.disabled = true;
+    (function next(){
+      if(i >= list.length){
+        printUnprintedBtn.disabled = false;
+        renderLog();
+        showInfoModal("Done printing", "Printed " + total + " ticket" + (total === 1 ? "" : "s") + ".");
+        return;
+      }
+      var t = list[i];
+      printHtml('<div class="ticket-card">' + ticketMarkup(t) + '</div>');
+      t.printed = true;
+      saveData();
+      i++;
+      // A short gap between each one — gives the mini printer (and the
+      // print window) time to actually finish the previous ticket before
+      // the next is sent, same idea as the existing single-ticket print's
+      // own internal delay.
+      setTimeout(next, 1400);
+    })();
+  }
+
+  if(printUnprintedBtn){
+    printUnprintedBtn.addEventListener("click", printUnprintedTickets);
   }
 
   // Returns (creating if needed) the actual stored array for a date, so
@@ -2726,8 +2986,35 @@
     var t = data.tickets.find(function(x){ return x.id === id; });
     if(!t) return;
     t.paid = true;
+    t.moneySent = false;
+    t.paidViaButton = true;
     saveData();
     queueSync({ action: "setStatus", route: t.route, ticketNum: t.ticketNo, paidStatus: "Paid" });
+  }
+  // A "Not paid" ticket where the traveller ends up sending the fare by
+  // mobile money instead of handing over cash — the counterpart to the
+  // "Mark paid" button above, for the other way the money can actually
+  // arrive. Counts the same as ticking "Money Sent" at issue time: not in
+  // the physical till, to be collected from the driver separately.
+  function markTicketSentLater(id){
+    var t = data.tickets.find(function(x){ return x.id === id; });
+    if(!t) return;
+    t.paid = true;
+    t.moneySent = true;
+    t.paidViaButton = true;
+    saveData();
+    queueSync({ action: "setStatus", route: t.route, ticketNum: t.ticketNo, paidStatus: "Sent" });
+  }
+  // Reverses either "Mark paid" (an accidental tap) or a "Money Sent" that
+  // turned out to never actually arrive — both land back on "Not paid",
+  // since in both cases the money hasn't genuinely been collected.
+  function undoTicketPayment(id){
+    var t = data.tickets.find(function(x){ return x.id === id; });
+    if(!t) return;
+    t.paid = false;
+    t.moneySent = false;
+    saveData();
+    queueSync({ action: "setStatus", route: t.route, ticketNum: t.ticketNo, paidStatus: "Not paid" });
   }
   function removePickupEntry(day, id){
     day = day || todayStr();
@@ -3211,6 +3498,19 @@
       date: date,
       paid: wasMoneySent ? true : !wasNotPaid,
       moneySent: wasMoneySent,
+      // True only once this ticket has been settled through the log's
+      // "Mark paid" button (i.e. it started life as "Not paid" and was
+      // later marked paid by hand) — as opposed to a ticket that was
+      // simply paid in cash at the moment it was issued. Only the former
+      // gets an "Undo" button, since the latter was a deliberate, correct
+      // entry rather than something that could've been an accidental tap.
+      paidViaButton: false,
+      // Tracks whether this ticket's paper copy has ever been printed —
+      // either via the row's own 🖨 button, or by the "Print unprinted"
+      // catch-up button. Starts false; never touched by anything else
+      // (cancelling removes the ticket outright, so there's nothing to
+      // flip back).
+      printed: false,
       time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
       createdAt: new Date().toISOString()
     };
@@ -3454,13 +3754,36 @@
       renderLog();
       return;
     }
+    var sentBtn = e.target.closest(".pk-sent-btn");
+    if(sentBtn){
+      var sentTicketId = sentBtn.getAttribute("data-ticket-id");
+      if(sentTicketId){
+        markTicketSentLater(sentTicketId);
+        renderLog();
+        renderStats();
+      }
+      return;
+    }
+    var undoBtn = e.target.closest(".pk-undo-btn");
+    if(undoBtn){
+      var undoTicketId = undoBtn.getAttribute("data-ticket-id");
+      if(undoTicketId){
+        undoTicketPayment(undoTicketId);
+        renderLog();
+        renderStats();
+      }
+      return;
+    }
     var btn = e.target.closest(".reprint-btn");
     if(!btn) return;
     var pickupId = btn.getAttribute("data-pickup-id");
     if(pickupId){ showRemovePickupModal(logDate.value || todayStr(), pickupId); return; }
     var id = btn.getAttribute("data-id");
     var t = data.tickets.find(function(x){ return x.id === id; });
-    if(t){ printHtml('<div class="ticket-card">' + ticketMarkup(t) + '</div>'); }
+    if(t){
+      printHtml('<div class="ticket-card">' + ticketMarkup(t) + '</div>');
+      if(!t.printed){ t.printed = true; saveData(); updatePrintUnprintedCount(); }
+    }
   });
 
   logBody.addEventListener("change", function(e){
