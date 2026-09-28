@@ -117,6 +117,17 @@
     letter-spacing:.02em; cursor:pointer; white-space:nowrap;
   }
   .reset-all-btn:hover{ background:rgba(0,0,0,.32); border-color:#fdf3e4; }
+  .global-date-bar{
+    flex:0 0 auto; display:flex; align-items:center; gap:8px;
+    background:rgba(0,0,0,.18); border:1px solid rgba(253,243,228,.55); color:#fdf3e4;
+    padding:8px 12px; border-radius:9px; font-family:'Inter'; font-size:.74rem; font-weight:700;
+    letter-spacing:.02em; white-space:nowrap;
+  }
+  .global-date-bar label{ opacity:.9; }
+  .global-date-bar input[type="date"]{
+    background:#fdf3e4; color:#241a12; border:1px solid rgba(36,26,18,.2); border-radius:7px;
+    padding:5px 7px; font-family:'Inter'; font-size:.78rem; font-weight:600;
+  }
   .guest-sync-bar, .full-sync-bar{
     flex:0 0 auto; display:flex; align-items:center; gap:10px;
     background:rgba(0,0,0,.18); border:1px solid rgba(253,243,228,.4); color:#fdf3e4;
@@ -609,6 +620,10 @@
         <div class="brand-sub">Ticket counter · Aboi</div>
       </div>
     </div>
+    <div class="global-date-bar" title="Sets the date for Issue Ticket — Pickup Points and All Travellers follow it automatically, unless you've changed one of them by hand">
+      <label for="globalDate">Working date</label>
+      <input id="globalDate" type="date">
+    </div>
     <div class="today-stats">
       <div class="stat">
         <div class="stat-num" id="todayCount">0</div>
@@ -973,6 +988,13 @@
   // following fDate — this is the escape hatch for "I forgot to change the
   // travel date and already added pickups against the wrong day."
   var pkDateManual = false;
+  // All Travellers' log Date field follows the same rule as Pickup Points'
+  // above: it tracks the ticket form's Travel date automatically, until
+  // someone edits the log's own date field directly (or taps "Today"),
+  // at which point it stops following until the master date picker is
+  // used again (see globalDate below).
+  var logDateManual = false;
+  var globalDate = document.getElementById("globalDate");
   var pickupBusFilter = document.getElementById("pickupBusFilter");
   var pickupTotalLabel = document.getElementById("pickupTotalLabel");
   var pkPrintBtn = document.getElementById("pkPrintBtn");
@@ -3259,6 +3281,13 @@
     // updatePickupBusHint/refreshPickupSeatSuggestion/syncOtherBusControls)
     // picks up the new pkDate value below automatically.
     if(!pkDateManual) pkDate.value = day;
+    // All Travellers' log date follows the same way — but unlike pkDate,
+    // nothing else re-renders the log automatically, so we redraw it here.
+    if(!logDateManual){ logDate.value = day; renderLog(); }
+    // Keep the master date picker showing whatever the ticket form is on,
+    // even when the ticket date was changed directly rather than via the
+    // master picker itself.
+    if(globalDate) globalDate.value = day;
     switchToSlot(day, getActiveSlot(day));
   });
   busCapacity.addEventListener("input", function(){
@@ -3326,8 +3355,23 @@
     if(lastTicket) printHtml('<div class="ticket-card">' + ticketMarkup(lastTicket) + '</div>');
   });
 
-  logDate.addEventListener("change", renderLog);
-  todayBtn.addEventListener("click", function(){ logDate.value = todayStr(); renderLog(); });
+  // Editing the log's own date field directly is a correction, exactly like
+  // pkDate above — it stops following the ticket form's date until the
+  // master date picker is used again.
+  logDate.addEventListener("change", function(){ logDateManual = true; renderLog(); });
+  todayBtn.addEventListener("click", function(){ logDateManual = true; logDate.value = todayStr(); renderLog(); });
+  if(globalDate){
+    globalDate.addEventListener("change", function(){
+      var day = globalDate.value || todayStr();
+      // The master picker is a deliberate "set everything to this date"
+      // action, so it overrides any earlier manual corrections and
+      // re-links Pickup Points and All Travellers to follow again.
+      pkDateManual = false;
+      logDateManual = false;
+      fDate.value = day;
+      fDate.dispatchEvent(new Event("change"));
+    });
+  }
   logBusSelect.addEventListener("change", renderLog);
 
   logBody.addEventListener("click", function(e){
@@ -3434,6 +3478,7 @@
   logDate.value = todayStr();
   mfDate.value = todayStr();
   pkDate.value = todayStr();
+  if(globalDate) globalDate.value = todayStr();
   applyRouteFare();
   updatePhoneFieldVisibility();
   switchToSlot(fDate.value, getActiveSlot(fDate.value));
@@ -3451,10 +3496,8 @@
 
 <script>
   // Registers the offline/installable-app support (manifest.json + service-worker.js).
-  // Safe to no-op if the browser doesn't support it or the file is opened
-  // straight from the phone's storage instead of over https.
-  if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')){
-    window.addEventListener('load', function(){
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
       navigator.serviceWorker.register('service-worker.js').catch(function(){ /* ignore */ });
     });
   }
