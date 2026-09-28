@@ -3229,6 +3229,13 @@
       renderMfBusSelect(day);
       refreshManifestSeatDefault();
     }
+    // Any already-issued ticket sold with a blank bus number live-follows
+    // this plate (see effectiveBusNo) — but that only shows up if the log
+    // table actually redraws. Without this, typing the plate updated the
+    // boarding sheet and the Sheet's own copy, but left an already-open
+    // log view stuck showing the old value until something else happened
+    // to refresh it.
+    if((logDate.value || todayStr()) === day) renderLog();
   });
   fDriver.addEventListener("change", function(){
     var day = fDate.value || todayStr();
