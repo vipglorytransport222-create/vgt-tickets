@@ -172,7 +172,10 @@
   .guest-sync-bar[hidden], .full-sync-bar[hidden]{ display:none; }
   .modal-overlay{
     position:fixed; inset:0; background:rgba(20,12,8,.62); display:flex; align-items:center;
-    justify-content:center; z-index:200; padding:16px;
+    /* Above .login-page (z-index:300) too — the master-code and manage-staff
+       modals both need to open on top of the "Who's selling?" screen, which
+       uses that same login-page styling. */
+    justify-content:center; z-index:350; padding:16px;
   }
   .modal-overlay[hidden]{ display:none; }
   .modal-box{
@@ -328,6 +331,39 @@
     letter-spacing:.02em; cursor:pointer; white-space:nowrap;
   }
   .mode-badge:hover{ background:rgba(0,0,0,.32); border-color:#fdf3e4; }
+
+  /* ---- "Who's selling?" screen ---- */
+  .seller-list{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:6px; }
+  .seller-name-btn{
+    flex:1 1 120px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+    padding:13px 10px; font-family:'Inter'; font-weight:700; font-size:.9rem; color:var(--ink);
+    cursor:pointer; text-align:center;
+  }
+  .seller-name-btn:hover{ border-color:var(--gold); }
+  .seller-name-btn.is-picked{ background:var(--gold); color:var(--red-deep); border-color:var(--red-deep); }
+  #sellerPinRow{ margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .login-back-btn-inline{
+    background:none; border:none; color:var(--muted); font-family:'Inter'; font-size:.78rem;
+    font-weight:600; cursor:pointer; text-decoration:underline; padding:4px 0;
+  }
+  .manage-staff-link{
+    display:block; width:100%; margin-top:20px; background:none; border:1px dashed var(--border);
+    border-radius:10px; padding:10px; font-family:'Inter'; font-size:.78rem; font-weight:700;
+    color:var(--muted); cursor:pointer; text-align:center;
+  }
+  .manage-staff-link:hover{ border-color:var(--gold); color:var(--ink); }
+  .staff-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0;
+    border-bottom:1px solid var(--border); font-size:.85rem;
+  }
+  .staff-row:last-child{ border-bottom:none; }
+  .staff-row-name{ font-weight:700; }
+  .staff-row-pin{ color:var(--muted); font-variant-numeric:tabular-nums; }
+  .staff-row-remove{
+    background:none; border:1px solid var(--border); border-radius:8px; padding:4px 9px;
+    font-size:.75rem; font-weight:700; color:var(--red); cursor:pointer;
+  }
+  .staff-row-remove:hover{ background:var(--red); color:#fff; border-color:var(--red); }
 
   /* ---- panels ---- */
   .panel{
@@ -703,6 +739,74 @@
   </div>
 </div>
 
+<div class="login-page" id="sellerPage" hidden>
+  <div class="login-wrap" style="grid-template-columns:1fr;">
+    <div class="login-card" style="margin:0 auto; max-width:420px;">
+      <div class="login-badge">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="6" width="20" height="11" rx="2.5" fill="#b3221d"/>
+          <rect x="4" y="8" width="4.2" height="4" rx="0.6" fill="#fdf3e4"/>
+          <rect x="9.4" y="8" width="4.2" height="4" rx="0.6" fill="#fdf3e4"/>
+          <rect x="14.8" y="8" width="4.2" height="4" rx="0.6" fill="#fdf3e4"/>
+          <circle cx="6.5" cy="18" r="2" fill="#241a12"/>
+          <circle cx="17.5" cy="18" r="2" fill="#241a12"/>
+        </svg>
+      </div>
+      <div class="login-brand">VIP Glory Transport</div>
+      <div class="login-sub">Who's selling?</div>
+      <div class="login-section">
+        <h3>Tap your name</h3>
+        <div id="sellerList" class="seller-list"></div>
+        <p class="hint" id="sellerListEmptyHint" hidden>No staff added yet — use "Manage staff" below to add the first one.</p>
+        <div id="sellerPinRow" hidden>
+          <label>PIN for <span id="sellerPinName"></span>
+            <input id="sellerPinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="8">
+          </label>
+          <p class="form-error" id="sellerError"></p>
+          <button type="button" class="btn-issue" id="sellerContinueBtn">Continue</button>
+          <button type="button" class="login-back-btn-inline" id="sellerChangeNameBtn">← choose someone else</button>
+        </div>
+      </div>
+      <button type="button" class="manage-staff-link" id="manageStaffLinkBtn">⚙ Manage staff</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="masterCodeModalOverlay" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <div class="modal-title">🔒 Master code needed</div>
+    <div class="modal-body" id="masterCodeModalBody"></div>
+    <label>Master code
+      <input id="masterCodeInput" type="password" inputmode="numeric" autocomplete="off">
+    </label>
+    <p class="form-error" id="masterCodeError"></p>
+    <div class="modal-actions">
+      <button type="button" class="modal-btn modal-btn-cancel" id="masterCodeCancelBtn">Cancel</button>
+      <button type="button" class="modal-btn modal-btn-danger" id="masterCodeConfirmBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manageStaffModalOverlay" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <div class="modal-title">⚙ Manage staff</div>
+    <div class="modal-body" id="manageStaffModalBody"></div>
+    <div class="capacity-row">
+      <label>Name
+        <input id="newStaffName" type="text" autocomplete="off" placeholder="e.g. Kofi Owusu">
+      </label>
+      <label>PIN
+        <input id="newStaffPin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="e.g. 4821">
+      </label>
+    </div>
+    <p class="form-error" id="manageStaffError"></p>
+    <div class="modal-actions">
+      <button type="button" class="modal-btn modal-btn-cancel" id="manageStaffCloseBtn">Close</button>
+      <button type="button" class="modal-btn modal-btn-danger" id="addStaffBtn">+ Add staff</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
   <div class="route-tabs" id="routeTabs">
     <button type="button" class="route-tab active" id="routeTabKumasi" data-route="kumasi">Aboi → Kumasi</button>
@@ -762,6 +866,7 @@
       <span id="fullSyncText">Not yet synced</span>
       <button id="fullSyncBtn" type="button" title="Push any pending sales to the Sheet right now and confirm it's synced">🔄 Sync now</button>
     </div>
+    <button id="signOutSellerBtn" type="button" class="mode-badge" title="Sign out of your name only — the app stays logged in and ready for the next seller" hidden>👤 <span id="signOutSellerLabel">Sign out</span></button>
     <button id="switchModeBtn" type="button" class="mode-badge" title="Log out — you'll need to enter your credentials again to get back in">🔒 Log out</button>
     <button id="resetAllBtn" type="button" class="reset-all-btn" title="Permanently clear tickets, pickups, buses and capacities for one selected day only">⚠ Reset this day</button>
   </div>
@@ -876,6 +981,12 @@
         </label>
         <span class="capacity-hint" id="capacityHint"></span>
       </div>
+      <div class="capacity-row" id="busFareRow">
+        <label>Fare for this bus today (GH₵)
+          <input id="busFare" type="number" min="0" step="1" placeholder="Set today's fare">
+        </label>
+        <span class="capacity-hint" id="busFareHint"></span>
+      </div>
       <div class="free-seats-row" id="freeSeatsRow">
         <button type="button" class="free-seats-strip" id="freeSeatsStrip" title="Tap to see every free seat on this bus"></button>
       </div>
@@ -887,7 +998,7 @@
           <input id="fPhone" type="tel" inputmode="numeric" autocomplete="off" placeholder="e.g. 0241234567" maxlength="10">
         </label>
         <label>Fare (GH₵)
-          <input id="fFare" type="number" min="0" step="1" required>
+          <input id="fFare" type="number" min="0" step="1">
         </label>
         <div class="row2">
           <label>Bus no.
@@ -973,7 +1084,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Seat</th><th>Time</th><th>Ticket #</th><th>Name</th><th>Type</th><th>Where</th><th>Phone</th><th>Bus</th><th>Fare</th><th></th></tr>
+          <tr><th>Seat</th><th>Time</th><th>Ticket #</th><th>Name</th><th>Type</th><th>Where</th><th>Phone</th><th>Bus</th><th>Sold by</th><th>Fare</th><th></th></tr>
         </thead>
         <tbody id="logBody"></tbody>
       </table>
@@ -1195,6 +1306,8 @@
   var daySummaryPrintArea = document.getElementById("daySummaryPrintArea");
   var busCapacity = document.getElementById("busCapacity");
   var capacityHint = document.getElementById("capacityHint");
+  var busFare = document.getElementById("busFare");
+  var busFareHint = document.getElementById("busFareHint");
   var freeSeatsStrip = document.getElementById("freeSeatsStrip");
   var busSelect = document.getElementById("busSelect");
   var busPlusBtn = document.getElementById("busPlusBtn");
@@ -1212,6 +1325,11 @@
   var AUTH_USER = "Glory VIP";
   var AUTH_PASS = "1234567890";
   var GUEST_PASS = "1234567890";
+  // The master code — needed to open "Manage staff" and to change/cancel a
+  // ticket someone ELSE sold while signed in under your own name. Same
+  // default as the day-reset passcode below, but its own separate value —
+  // ask to change it any time.
+  var MASTER_CODE = "0000";
   // "full" | "guest", remembered per device — but only for as long as
   // there's been recent activity. AUTH_ACTIVITY_KEY holds the timestamp of
   // the last tap/keypress/scroll; if too much time has passed since then
@@ -1243,6 +1361,31 @@
   var loginLoading = document.getElementById("loginLoading");
   var loginLoadingText = document.getElementById("loginLoadingText");
   var switchModeBtn = document.getElementById("switchModeBtn");
+  var signOutSellerBtn = document.getElementById("signOutSellerBtn");
+  var signOutSellerLabel = document.getElementById("signOutSellerLabel");
+  var sellerPage = document.getElementById("sellerPage");
+  var sellerList = document.getElementById("sellerList");
+  var sellerListEmptyHint = document.getElementById("sellerListEmptyHint");
+  var sellerPinRow = document.getElementById("sellerPinRow");
+  var sellerPinName = document.getElementById("sellerPinName");
+  var sellerPinInput = document.getElementById("sellerPinInput");
+  var sellerError = document.getElementById("sellerError");
+  var sellerContinueBtn = document.getElementById("sellerContinueBtn");
+  var sellerChangeNameBtn = document.getElementById("sellerChangeNameBtn");
+  var manageStaffLinkBtn = document.getElementById("manageStaffLinkBtn");
+  var manageStaffModalOverlay = document.getElementById("manageStaffModalOverlay");
+  var manageStaffModalBody = document.getElementById("manageStaffModalBody");
+  var manageStaffCloseBtn = document.getElementById("manageStaffCloseBtn");
+  var newStaffName = document.getElementById("newStaffName");
+  var newStaffPin = document.getElementById("newStaffPin");
+  var addStaffBtn = document.getElementById("addStaffBtn");
+  var manageStaffError = document.getElementById("manageStaffError");
+  var masterCodeModalOverlay = document.getElementById("masterCodeModalOverlay");
+  var masterCodeModalBody = document.getElementById("masterCodeModalBody");
+  var masterCodeInput = document.getElementById("masterCodeInput");
+  var masterCodeError = document.getElementById("masterCodeError");
+  var masterCodeCancelBtn = document.getElementById("masterCodeCancelBtn");
+  var masterCodeConfirmBtn = document.getElementById("masterCodeConfirmBtn");
 
   // True once we've decided (at this page-load) that a remembered login had
   // gone stale and been cleared, so openLoginPage() can say why.
@@ -1285,7 +1428,7 @@
   function applyAuthMode(){
     var guest = isGuest();
     if(appEl) appEl.classList.toggle("guest-mode", guest);
-    [".bus-switch-row", ".capacity-row", "#freeSeatsRow", "#ticketForm", "#busSwitchError"].forEach(function(sel){
+    [".bus-switch-row", ".capacity-row", "#busFareRow", "#freeSeatsRow", "#ticketForm", "#busSwitchError"].forEach(function(sel){
       var el = entryPanel.querySelector(sel);
       if(el) el.hidden = guest;
     });
@@ -1309,7 +1452,12 @@
     if(guestLogHint) guestLogHint.hidden = !guest;
     if(normalLogHint) normalLogHint.hidden = guest;
     if(brandSub){
-      brandSub.textContent = "Ticket counter · Aboi" + (authMode === "guest" ? " · Guest (view only)" : authMode === "full" ? " · Full access" : "");
+      brandSub.textContent = "Ticket counter · Aboi" + (authMode === "guest" ? " · Guest (view only)" : authMode === "full" ? " · Full access" : "") +
+        (authMode === "full" && currentSeller ? " · Selling as " + currentSeller.name : "");
+    }
+    if(signOutSellerBtn){
+      signOutSellerBtn.hidden = !(authMode === "full" && currentSeller);
+      if(signOutSellerLabel && currentSeller) signOutSellerLabel.textContent = "Sign out (" + currentSeller.name + ")";
     }
     // Guest mode reads live from the Google Sheet (the one place every
     // device's sales end up) instead of this device's own local storage,
@@ -1322,6 +1470,271 @@
     } else {
       stopGuestAutoRefresh();
     }
+  }
+
+  // ---- Staff list (name + PIN) — synced to the Sheet, editable any time
+  // from "Manage staff" (master-code gated) ----
+  // Kept locally too (same offline-first pattern as everything else in this
+  // app) so the "Who's selling?" screen still works the instant staff mode
+  // opens, even before the server round-trip finishes — the server fetch
+  // then quietly refreshes it with whatever's really on the Sheet, so a
+  // staff member added from a DIFFERENT laptop/phone shows up here too.
+  var STAFF_KEY = "vgt_staff_list_v1";
+  function loadStaffList(){
+    try{
+      var raw = localStorage.getItem(STAFF_KEY);
+      if(raw){ var p = JSON.parse(raw); if(Array.isArray(p)) return p; }
+    }catch(e){}
+    return [];
+  }
+  function saveStaffListLocal(){ try{ localStorage.setItem(STAFF_KEY, JSON.stringify(staffList)); }catch(e){} }
+  var staffList = loadStaffList();
+  function fetchStaffList(){
+    var url = SYNC_URL + "?action=getStaffList&token=" + encodeURIComponent(SYNC_TOKEN);
+    return fetch(url).then(function(res){ return res.json(); }).then(function(json){
+      if(!json || !json.ok) throw new Error((json && json.error) || "Failed to load staff list");
+      return json.staff || [];
+    });
+  }
+  // Whole-list replace, kept simple on purpose — the staff list is always
+  // small, so re-sending the entire thing on every add/remove/edit is far
+  // simpler (and less error-prone) than diffing, and still lands in one
+  // sync-queue item like everything else.
+  function pushStaffList(){
+    queueSync({ action: "setStaffList", staff: staffList });
+  }
+  function refreshStaffListFromServer(){
+    fetchStaffList().then(function(list){
+      staffList = list;
+      saveStaffListLocal();
+      renderSellerList();
+      renderManageStaffList();
+    }).catch(function(){ /* offline — the local/cached list is still shown */ });
+  }
+
+  // ---- Who's currently signed in as "the seller" on THIS device ----
+  // Separate from authMode (which is "are we logged in as staff at all") —
+  // this is "which staff member is currently selling," and is what a
+  // ticket's "Sold by" gets stamped with. Persists across page reloads
+  // (so it doesn't ask again every time the app is reopened) but is
+  // cleared by both "Sign out" (of the name only) and "Log out" (of the
+  // app entirely).
+  var CURRENT_SELLER_KEY = "vgt_current_seller_v1";
+  function loadCurrentSeller(){
+    try{
+      var raw = localStorage.getItem(CURRENT_SELLER_KEY);
+      if(raw){ var p = JSON.parse(raw); if(p && p.name) return p; }
+    }catch(e){}
+    return null;
+  }
+  function saveCurrentSeller(){
+    try{
+      if(currentSeller) localStorage.setItem(CURRENT_SELLER_KEY, JSON.stringify(currentSeller));
+      else localStorage.removeItem(CURRENT_SELLER_KEY);
+    }catch(e){}
+  }
+  var currentSeller = loadCurrentSeller();
+
+  var sellerPickedName = null;
+  function renderSellerList(){
+    if(!sellerList) return;
+    sellerListEmptyHint.hidden = staffList.length > 0;
+    sellerList.innerHTML = staffList.map(function(s){
+      return '<button type="button" class="seller-name-btn' +
+        (sellerPickedName === s.name ? ' is-picked' : '') + '" data-name="' + escapeHtml(s.name) + '">' +
+        escapeHtml(s.name) + '</button>';
+    }).join("");
+  }
+  function pickSellerName(name){
+    sellerPickedName = name;
+    sellerPinName.textContent = name;
+    sellerPinInput.value = "";
+    sellerError.textContent = "";
+    sellerPinRow.hidden = false;
+    renderSellerList();
+    sellerPinInput.focus();
+  }
+  if(sellerList){
+    sellerList.addEventListener("click", function(e){
+      var btn = e.target.closest(".seller-name-btn");
+      if(btn) pickSellerName(btn.getAttribute("data-name"));
+    });
+  }
+  if(sellerChangeNameBtn){
+    sellerChangeNameBtn.addEventListener("click", function(){
+      sellerPickedName = null;
+      sellerPinRow.hidden = true;
+      renderSellerList();
+    });
+  }
+  function confirmSellerPin(){
+    var s = staffList.find(function(x){ return x.name === sellerPickedName; });
+    if(!s){ sellerError.textContent = "Choose a name first."; return; }
+    if(sellerPinInput.value !== s.pin){
+      sellerError.textContent = "Incorrect PIN.";
+      sellerPinInput.value = "";
+      sellerPinInput.focus();
+      return;
+    }
+    currentSeller = { name: s.name };
+    saveCurrentSeller();
+    sellerPickedName = null;
+    closeSellerPage();
+    applyAuthMode();
+  }
+  if(sellerContinueBtn) sellerContinueBtn.addEventListener("click", confirmSellerPin);
+  if(sellerPinInput){
+    sellerPinInput.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); confirmSellerPin(); }
+    });
+  }
+
+  function openSellerPage(){
+    sellerPickedName = null;
+    sellerPinRow.hidden = true;
+    sellerError.textContent = "";
+    renderSellerList();
+    sellerPage.hidden = false;
+    if(appEl) appEl.style.display = "none";
+    loginPage.hidden = true;
+  }
+  function closeSellerPage(){
+    sellerPage.hidden = true;
+    if(appEl) appEl.style.display = "";
+  }
+  // The single place that decides which of "login screen / who's-selling
+  // screen / the app itself" should be showing right now — called after
+  // every login, sign-out and log-out so none of those spots have to
+  // remember this logic themselves.
+  function updateGateVisibility(){
+    if(!authMode) return; // openLoginPage/logOut already handle this case
+    if(authMode === "full" && !currentSeller){ openSellerPage(); }
+    else { closeSellerPage(); }
+  }
+
+  // ---- Master code gate ----
+  // One shared small modal, reused for both "open Manage staff" and
+  // "change/cancel a ticket someone else sold" — whichever action asked
+  // for it runs once the correct code is typed.
+  var pendingMasterAction = null;
+  function requireMasterCode(bodyText, onSuccess){
+    pendingMasterAction = onSuccess;
+    masterCodeModalBody.textContent = bodyText;
+    masterCodeInput.value = "";
+    masterCodeError.textContent = "";
+    masterCodeModalOverlay.hidden = false;
+    masterCodeInput.focus();
+  }
+  function closeMasterCodeModal(){
+    masterCodeModalOverlay.hidden = true;
+    pendingMasterAction = null;
+  }
+  if(masterCodeCancelBtn) masterCodeCancelBtn.addEventListener("click", closeMasterCodeModal);
+  if(masterCodeModalOverlay){
+    masterCodeModalOverlay.addEventListener("click", function(e){
+      if(e.target === masterCodeModalOverlay) closeMasterCodeModal();
+    });
+  }
+  function confirmMasterCode(){
+    if(masterCodeInput.value !== MASTER_CODE){
+      masterCodeError.textContent = "Incorrect master code.";
+      masterCodeInput.value = "";
+      masterCodeInput.focus();
+      return;
+    }
+    var action = pendingMasterAction;
+    masterCodeModalOverlay.hidden = true;
+    pendingMasterAction = null;
+    if(action) action();
+  }
+  if(masterCodeConfirmBtn) masterCodeConfirmBtn.addEventListener("click", confirmMasterCode);
+  if(masterCodeInput){
+    masterCodeInput.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); confirmMasterCode(); }
+    });
+  }
+  // The gate used before cancelling/changing an already-sold ticket: free
+  // to proceed if this ticket has no recorded seller (an older ticket, sold
+  // before this feature existed) or was sold by whoever's signed in right
+  // now — otherwise the master code is required, without switching who's
+  // signed in.
+  function runIfOwnerOrMaster(ticket, action){
+    if(!ticket || !ticket.soldBy || !currentSeller || ticket.soldBy === currentSeller.name){
+      action();
+      return;
+    }
+    requireMasterCode(
+      ticket.soldBy + " sold this ticket. Enter the master code to make this change while staying signed in as " + currentSeller.name + ".",
+      action
+    );
+  }
+
+  // ---- Manage staff (master-code gated) ----
+  function renderManageStaffList(){
+    if(!manageStaffModalBody) return;
+    if(staffList.length === 0){
+      manageStaffModalBody.innerHTML = '<p class="hint">No staff added yet — add the first one below.</p>';
+      return;
+    }
+    manageStaffModalBody.innerHTML = staffList.map(function(s){
+      return '<div class="staff-row">' +
+        '<span class="staff-row-name">' + escapeHtml(s.name) + '</span>' +
+        '<span class="staff-row-pin">PIN ' + escapeHtml(s.pin) + '</span>' +
+        '<button type="button" class="staff-row-remove" data-name="' + escapeHtml(s.name) + '">Remove</button>' +
+      '</div>';
+    }).join("");
+  }
+  function openManageStaffModal(){
+    manageStaffError.textContent = "";
+    newStaffName.value = "";
+    newStaffPin.value = "";
+    renderManageStaffList();
+    manageStaffModalOverlay.hidden = false;
+  }
+  if(manageStaffLinkBtn){
+    manageStaffLinkBtn.addEventListener("click", function(){
+      requireMasterCode("Enter the master code to manage staff.", openManageStaffModal);
+    });
+  }
+  if(manageStaffCloseBtn){
+    manageStaffCloseBtn.addEventListener("click", function(){ manageStaffModalOverlay.hidden = true; });
+  }
+  if(manageStaffModalOverlay){
+    manageStaffModalOverlay.addEventListener("click", function(e){
+      if(e.target === manageStaffModalOverlay) manageStaffModalOverlay.hidden = true;
+    });
+  }
+  if(addStaffBtn){
+    addStaffBtn.addEventListener("click", function(){
+      var name = newStaffName.value.trim();
+      var pin = newStaffPin.value.trim();
+      manageStaffError.textContent = "";
+      if(!name){ manageStaffError.textContent = "Enter a name."; newStaffName.focus(); return; }
+      if(!pin){ manageStaffError.textContent = "Enter a PIN."; newStaffPin.focus(); return; }
+      if(staffList.some(function(s){ return s.name.toLowerCase() === name.toLowerCase(); })){
+        manageStaffError.textContent = "Someone with that name is already on the list.";
+        return;
+      }
+      staffList.push({ name: name, pin: pin });
+      saveStaffListLocal();
+      pushStaffList();
+      newStaffName.value = "";
+      newStaffPin.value = "";
+      renderManageStaffList();
+      renderSellerList();
+    });
+  }
+  if(manageStaffModalBody){
+    manageStaffModalBody.addEventListener("click", function(e){
+      var btn = e.target.closest(".staff-row-remove");
+      if(!btn) return;
+      var name = btn.getAttribute("data-name");
+      staffList = staffList.filter(function(s){ return s.name !== name; });
+      saveStaffListLocal();
+      pushStaffList();
+      renderManageStaffList();
+      renderSellerList();
+    });
   }
 
   // The login screen is a full standalone page, not a popup — while it's
@@ -1371,6 +1784,8 @@
         saveAuthMode("full");
         closeLoginPage();
         applyAuthMode();
+        refreshStaffListFromServer();
+        updateGateVisibility();
       }, 450);
     } else {
       loginError.textContent = "Incorrect username or password.";
@@ -1428,6 +1843,9 @@
     showLoginLoading(reason === "idle" ? "Logging out — inactive…" : "Logging out…");
     setTimeout(function(){
       authMode = null;
+      currentSeller = null;
+      saveCurrentSeller();
+      sellerPage.hidden = true;
       try{ localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_ACTIVITY_KEY); }catch(e){}
       if(reason === "idle") authExpiredOnLoad = true; // makes openLoginPage show the "why" message
       applyAuthMode();
@@ -1435,6 +1853,17 @@
     }, 400);
   }
   switchModeBtn.addEventListener("click", function(){ logOut(); });
+  // "Sign out" only clears WHO's selling, not the app's own login — the
+  // device stays on the ticket counter's full access, and the "Who's
+  // selling?" screen comes straight back up for the next person.
+  if(signOutSellerBtn){
+    signOutSellerBtn.addEventListener("click", function(){
+      currentSeller = null;
+      saveCurrentSeller();
+      applyAuthMode();
+      updateGateVisibility();
+    });
+  }
 
   // ---- auto logout after a few minutes of inactivity ----
   // Any real tap/keypress/scroll resets the clock (throttled so this isn't
@@ -1711,7 +2140,7 @@
   var remoteBusInfo = {};
   function getBusInfoCacheEntry(route, date){
     var key = route + "|" + date;
-    if(!remoteBusInfo[key]) remoteBusInfo[key] = { state: "idle", plates: {}, drivers: {}, capacities: {} };
+    if(!remoteBusInfo[key]) remoteBusInfo[key] = { state: "idle", plates: {}, drivers: {}, capacities: {}, fares: {} };
     return remoteBusInfo[key];
   }
   function fetchRemoteBusInfo(route, date){
@@ -1728,11 +2157,12 @@
     entry.state = "loading";
     fetchRemoteBusInfo(route, date).then(function(list){
       entry.state = "ready";
-      entry.plates = {}; entry.drivers = {}; entry.capacities = {};
+      entry.plates = {}; entry.drivers = {}; entry.capacities = {}; entry.fares = {};
       list.forEach(function(b){
         entry.plates[b.slot] = b.plate || "";
         entry.drivers[b.slot] = b.driver || "";
         entry.capacities[b.slot] = Number(b.capacity) || 0;
+        entry.fares[b.slot] = Number(b.fare) || 0;
       });
       refreshGuestBusUi();
     }).catch(function(){
@@ -1838,7 +2268,8 @@
       blockTitle: blockTitleFor(date, slot, plate),
       plate: plate,
       driver: driver,
-      capacity: getCapacityFor(date, slot) || 0
+      capacity: getCapacityFor(date, slot) || 0,
+      defaultFare: getFareFor(date, slot) || 0
     });
   }
   // Undoes an eager retitleBlock — used when a just-added, still-empty bus
@@ -1999,6 +2430,40 @@
     return getCapacityFor(day, getActiveSlot(day));
   }
 
+  // Fare is per bus SLOT per date too (same reasoning as capacity above) —
+  // deliberately NOT carried over from one day to the next: a different
+  // physical bus can show up on the same slot tomorrow at a different
+  // price, so every new day starts with no fare set, forcing whoever's
+  // selling to consciously confirm today's price before anything can be
+  // sold on that bus. See getFareFor's guest branch for how a guest's
+  // phone reads the real, currently-synced fare from the Sheet instead of
+  // trusting its own (usually empty) local storage.
+  var FARE_KEY = "vgt_fare_map_v1";
+  function loadFareMap(){
+    try{
+      var raw = localStorage.getItem(FARE_KEY);
+      if(raw){ var p = JSON.parse(raw); if(p && typeof p === "object") return p; }
+    }catch(e){}
+    return {};
+  }
+  function saveFareMap(){ try{ localStorage.setItem(FARE_KEY, JSON.stringify(fareMap)); }catch(e){} }
+  var fareMap = loadFareMap();
+  function getFareFor(day, slot){
+    if(isGuest()){
+      var entry = getBusInfoCacheEntry(currentRoute, day);
+      if(entry.state === "idle") triggerRemoteBusInfoFetch(currentRoute, day);
+      var n = entry.fares ? entry.fares[slot] : null;
+      return (n && n > 0) ? n : null;
+    }
+    var n = fareMap[capKey(day, slot)];
+    return (typeof n === "number" && n > 0) ? n : null;
+  }
+  function setFareFor(day, slot, n){
+    var key = capKey(day, slot);
+    if(n && n > 0) fareMap[key] = n; else delete fareMap[key];
+    saveFareMap();
+  }
+
   // Live seat/rider count for a bus SLOT (independent of whether its
   // plate has been typed yet) — used for selling and capacity checks.
   // A guest's phone never sells anything locally, so its own local
@@ -2045,6 +2510,23 @@
     capacityHint.textContent = count + " / " + cap + " seats sold" + (full ? " — " + ordinalBus(slot + 1).toUpperCase() + " FULL" : "");
     capacityHint.classList.toggle("is-full", full);
     refreshFreeSeatsStrip();
+  }
+
+  // No ticket can be sold on a bus until its fare for TODAY is set (see the
+  // ticket form's submit handler) — this hint makes that visible right
+  // next to the box, in guest mode too (read-only there, since guests
+  // never sell).
+  function refreshBusFareHint(){
+    var day = fDate.value || todayStr();
+    var slot = getActiveSlot(day);
+    var fare = getFareFor(day, slot);
+    if(!fare){
+      busFareHint.textContent = isGuest() ? "" : "⚠ Set the fare before selling";
+      busFareHint.classList.add("is-full");
+    } else {
+      busFareHint.textContent = "GH₵" + fare + " auto-fills every ticket on this bus today";
+      busFareHint.classList.remove("is-full");
+    }
   }
 
   // ---- Free-seats strip ----
@@ -2179,6 +2661,9 @@
     fDriver.value = ensureDriversForDate(day)[idx] || "";
     fSeat.value = suggestSeat();
     busCapacity.value = getCapacityFor(day, idx) || "";
+    busFare.value = getFareFor(day, idx) || "";
+    fFare.value = getFareFor(day, idx) || "";
+    refreshBusFareHint();
     freeSeatsExpanded = false;
     refreshCapacityHint();
     renderBusSelect();
@@ -2264,10 +2749,13 @@
     return "PP-" + String(n).padStart(6, "0");
   }
 
-  function applyRouteFare(){
-    var r = ROUTES[currentRoute];
-    if(r && r.fare != null) fFare.value = r.fare;
-  }
+  // Fare used to default from a flat per-route number here; it's now the
+  // per-bus, per-day fare set in the "Fare for this bus today" box instead
+  // (see switchToSlot), so this function no longer has anything to do —
+  // kept as a no-op rather than removed, since it's still called from
+  // activateRoute/init below and deleting those call sites isn't worth the
+  // churn.
+  function applyRouteFare(){}
 
   // The phone-number field only exists for Aboi → Accra (your dad's own
   // request for that route) — on Kumasi it's hidden and not required at
@@ -2902,13 +3390,13 @@
     var entry = getCacheEntry(currentRoute, day);
     if(entry.state === "idle") triggerRemoteFetch(currentRoute, day);
     if(entry.state === "loading"){
-      logBody.innerHTML = '<tr class="empty-row"><td colspan="10">Loading from the Sheet…</td></tr>';
+      logBody.innerHTML = '<tr class="empty-row"><td colspan="11">Loading from the Sheet…</td></tr>';
       logCount.textContent = ""; logTotal.textContent = "";
       logSentFooter.hidden = true; logNextSeat.textContent = "";
       return;
     }
     if(entry.state === "error"){
-      logBody.innerHTML = '<tr class="empty-row"><td colspan="10">Couldn’t reach the Sheet — check your internet connection, then tap Refresh.</td></tr>';
+      logBody.innerHTML = '<tr class="empty-row"><td colspan="11">Couldn’t reach the Sheet — check your internet connection, then tap Refresh.</td></tr>';
       logCount.textContent = ""; logTotal.textContent = "";
       logSentFooter.hidden = true; logNextSeat.textContent = "";
       return;
@@ -2926,7 +3414,8 @@
         bus: r.bus || "—", seat: String(r.seat == null ? "" : r.seat).trim(),
         fare: Number(r.fare) || 0,
         paid: kind === "ticket" ? (paidStatus !== "Not paid") : (paidStatus === "Sent"),
-        moneySent: kind === "ticket" && paidStatus === "Sent"
+        moneySent: kind === "ticket" && paidStatus === "Sent",
+        soldBy: r.soldBy || ""
       };
     }).sort(function(a,b){
       var sa = a.seat && !isNaN(parseInt(a.seat,10)) ? parseInt(a.seat,10) : Infinity;
@@ -2938,7 +3427,7 @@
       var emptyMsg = filterSlot === null
         ? "No travellers recorded on this date yet."
         : "No travellers on " + ordinalBus(filterSlot + 1).toLowerCase() + " yet for this date.";
-      logBody.innerHTML = '<tr class="empty-row"><td colspan="10">' + emptyMsg + '</td></tr>';
+      logBody.innerHTML = '<tr class="empty-row"><td colspan="11">' + emptyMsg + '</td></tr>';
     } else {
       logBody.innerHTML = rows.map(function(r){
         var fareCell = r.kind === "ticket"
@@ -2956,6 +3445,7 @@
           '<td>' + escapeHtml(r.where) + '</td>' +
           '<td>' + (r.phone ? escapeHtml(r.phone) : "—") + '</td>' +
           '<td>' + r.bus + '</td>' +
+          '<td>' + (r.soldBy ? escapeHtml(r.soldBy) : "—") + '</td>' +
           '<td>' + fareCell + '</td>' +
           '<td></td>' +
         '</tr>';
@@ -3002,7 +3492,8 @@
       return {
         kind: "ticket", id: t.id, time: t.time, ticketNo: t.ticketNo, name: t.name,
         where: t.from + " → " + t.to, phone: t.phone || "", bus: effectiveBusNo(t) || "—", seat: (t.seatNo || "").trim(),
-        fare: t.fare, paid: t.paid !== false, moneySent: !!t.moneySent, paidViaButton: !!t.paidViaButton, createdAt: t.createdAt
+        fare: t.fare, paid: t.paid !== false, moneySent: !!t.moneySent, paidViaButton: !!t.paidViaButton, createdAt: t.createdAt,
+        soldBy: t.soldBy || ""
       };
     });
     var pickupRows = pickupsForDate(day).filter(function(p){
@@ -3011,7 +3502,7 @@
       return {
         kind: "pickup", id: p.id, time: p.time, ticketNo: p.ticketNo || "—", name: p.name,
         where: p.place + " (pickup)", phone: p.phone || "", bus: p.bus || "—", seat: (p.seatNo || "").trim(),
-        fare: p.fare, paid: !!p.paid, createdAt: p.createdAt
+        fare: p.fare, paid: !!p.paid, createdAt: p.createdAt, soldBy: p.soldBy || ""
       };
     });
     var rows = ticketRows.concat(pickupRows).sort(function(a,b){
@@ -3025,7 +3516,7 @@
       var emptyMsg = filterSlot === null
         ? "No travellers recorded on this date yet."
         : "No travellers on " + ordinalBus(filterSlot + 1).toLowerCase() + " yet for this date.";
-      logBody.innerHTML = '<tr class="empty-row"><td colspan="10">' + emptyMsg + '</td></tr>';
+      logBody.innerHTML = '<tr class="empty-row"><td colspan="11">' + emptyMsg + '</td></tr>';
     } else {
       logBody.innerHTML = rows.map(function(r){
         var guestRow = isGuest();
@@ -3081,6 +3572,7 @@
           '<td>' + escapeHtml(r.where) + '</td>' +
           '<td>' + (r.phone ? escapeHtml(r.phone) : "—") + '</td>' +
           '<td>' + r.bus + '</td>' +
+          '<td>' + (r.soldBy ? escapeHtml(r.soldBy) : "—") + '</td>' +
           '<td>' + fareCell + '</td>' +
           '<td>' + actionCell + '</td>' +
         '</tr>';
@@ -3318,7 +3810,8 @@
       paid: false,
       date: day,
       time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      soldBy: currentSeller ? currentSeller.name : ""
     };
     arr.push(p);
     savePickups();
@@ -3340,8 +3833,10 @@
       bus: bus || "-",
       driver: (ensureDriversForDate(day)[slot] || "").trim(),
       capacity: getCapacityFor(day, slot) || 0,
+      defaultFare: getFareFor(day, slot) || 0,
       fare: 0,
-      paidStatus: "Not paid"
+      paidStatus: "Not paid",
+      soldBy: p.soldBy || ""
     });
   }
   function findPickup(day, id){
@@ -3663,7 +4158,11 @@
 
   logBody.addEventListener("click", function(e){
     var cancelBtn = e.target.closest(".cancel-ticket-btn");
-    if(cancelBtn){ showCancelTicketStep(1, cancelBtn.getAttribute("data-cancel-id")); }
+    if(cancelBtn){
+      var cancelId = cancelBtn.getAttribute("data-cancel-id");
+      var tForCancel = data.tickets.find(function(x){ return x.id === cancelId; });
+      runIfOwnerOrMaster(tForCancel, function(){ showCancelTicketStep(1, cancelId); });
+    }
   });
   cancelTicketModalCancel.addEventListener("click", closeCancelTicketModal);
   cancelTicketModalOverlay.addEventListener("click", function(e){
@@ -3840,9 +4339,14 @@
       if(!phone){ formError.textContent = "Enter the passenger's phone number."; fPhone.focus(); return; }
       if(!/^\d{10}$/.test(phone)){ formError.textContent = "Phone number must be exactly 10 digits."; fPhone.focus(); return; }
     }
-    if(isNaN(fare) || fare < 0){ formError.textContent = "Enter a valid fare."; fFare.focus(); return; }
     var busVal = fBus.value.trim();
     var slot = getActiveSlot(date);
+    if(getFareFor(date, slot) == null){
+      formError.textContent = "Set the fare for " + ordinalBus(slot + 1) + " above before issuing tickets.";
+      busFare.focus();
+      return;
+    }
+    if(isNaN(fare) || fare < 0){ formError.textContent = "Enter a valid fare."; fFare.focus(); return; }
     var cap = getCapacityFor(date, slot);
     if(cap && travellerCountSlot(date, slot) >= cap){
       formError.textContent = ordinalBus(slot + 1) + " is full — " + travellerCountSlot(date, slot) + "/" + cap + " seats already sold. Switch to another bus above.";
@@ -3887,7 +4391,8 @@
       // entry rather than something that could've been an accidental tap.
       paidViaButton: false,
       time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      soldBy: currentSeller ? currentSeller.name : ""
     };
     data.tickets.push(t);
     saveData();
@@ -3918,8 +4423,10 @@
       busFollows: !busVal,
       driver: (ensureDriversForDate(date)[slot] || "").trim(),
       capacity: getCapacityFor(date, slot) || 0,
+      defaultFare: getFareFor(date, slot) || 0,
       fare: t.fare,
-      paidStatus: t.moneySent ? "Sent" : (t.paid === false ? "Not paid" : "Paid")
+      paidStatus: t.moneySent ? "Sent" : (t.paid === false ? "Not paid" : "Paid"),
+      soldBy: t.soldBy || ""
     });
 
     renderTicket(t);
@@ -4025,6 +4532,18 @@
     // up the current capacity the first time a ticket/pickup is added).
     retitleBlock(day, slot);
   });
+  busFare.addEventListener("input", function(){
+    var day = fDate.value || todayStr();
+    var slot = getActiveSlot(day);
+    var n = parseInt(busFare.value, 10);
+    setFareFor(day, slot, (!isNaN(n) && n > 0) ? n : null);
+    // A fare typed here right now should flow straight into the ticket
+    // form too, so the very next sale on this bus already carries it,
+    // without staff having to switch away and back.
+    fFare.value = getFareFor(day, slot) || "";
+    refreshBusFareHint();
+    retitleBlock(day, slot);
+  });
   busSelect.addEventListener("change", function(){
     var day = fDate.value || todayStr();
     switchToSlot(day, parseInt(busSelect.value, 10));
@@ -4102,9 +4621,12 @@
     if(paidBtn){
       var ticketId = paidBtn.getAttribute("data-ticket-id");
       if(ticketId){
-        markTicketPaid(ticketId);
-        renderLog();
-        renderStats();
+        var tForPaid = data.tickets.find(function(x){ return x.id === ticketId; });
+        runIfOwnerOrMaster(tForPaid, function(){
+          markTicketPaid(ticketId);
+          renderLog();
+          renderStats();
+        });
         return;
       }
       var day = logDate.value || todayStr();
@@ -4133,9 +4655,12 @@
     if(sentBtn){
       var sentTicketId = sentBtn.getAttribute("data-ticket-id");
       if(sentTicketId){
-        markTicketSentLater(sentTicketId);
-        renderLog();
-        renderStats();
+        var tForSent = data.tickets.find(function(x){ return x.id === sentTicketId; });
+        runIfOwnerOrMaster(tForSent, function(){
+          markTicketSentLater(sentTicketId);
+          renderLog();
+          renderStats();
+        });
       }
       return;
     }
@@ -4143,9 +4668,12 @@
     if(undoBtn){
       var undoTicketId = undoBtn.getAttribute("data-ticket-id");
       if(undoTicketId){
-        undoTicketPayment(undoTicketId);
-        renderLog();
-        renderStats();
+        var tForUndo = data.tickets.find(function(x){ return x.id === undoTicketId; });
+        runIfOwnerOrMaster(tForUndo, function(){
+          undoTicketPayment(undoTicketId);
+          renderLog();
+          renderStats();
+        });
       }
       return;
     }
@@ -4233,7 +4761,13 @@
   renderPickups();
   refreshManifestSeatDefault();
   applyAuthMode();
-  if(authMode){ closeLoginPage(); } else { openLoginPage(false); }
+  if(authMode){
+    closeLoginPage();
+    if(authMode === "full"){ refreshStaffListFromServer(); }
+    updateGateVisibility();
+  } else {
+    openLoginPage(false);
+  }
 
   // ---- opening splash sequence ----
   // Plays once over whatever's underneath (the login page, or the app if
