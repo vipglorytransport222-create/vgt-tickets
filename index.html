@@ -800,9 +800,9 @@
 
 <div class="modal-overlay" id="masterCodeModalOverlay" hidden>
   <div class="modal-box" role="dialog" aria-modal="true">
-    <div class="modal-title">🔒 Master code needed</div>
+    <div class="modal-title" id="masterCodeModalTitle">🔒 Master code needed</div>
     <div class="modal-body" id="masterCodeModalBody"></div>
-    <label>Master code
+    <label><span id="masterCodeModalLabel">Master code</span>
       <input id="masterCodeInput" type="password" inputmode="numeric" autocomplete="off">
     </label>
     <p class="form-error" id="masterCodeError"></p>
@@ -902,7 +902,7 @@
       <div class="modal-title" id="resetModalTitle">⚠ Warning</div>
       <div class="modal-body" id="resetModalBody"></div>
       <div id="resetModalPasscodeRow" hidden>
-        <label>Passcode
+        <label>Master code
           <input id="resetModalPasscode" type="password" inputmode="numeric" autocomplete="off">
         </label>
         <p class="form-error" id="resetModalPasscodeError"></p>
@@ -1351,11 +1351,16 @@
   var AUTH_USER = "Glory VIP";
   var AUTH_PASS = "1234567890";
   var GUEST_PASS = "1234567890";
-  // The master code — needed to open "Manage staff" and to change/cancel a
-  // ticket someone ELSE sold while signed in under your own name. Same
-  // default as the day-reset passcode below, but its own separate value —
-  // ask to change it any time.
-  var MASTER_CODE = "0000";
+  // The master code — needed to open "Manage staff", to change a staff
+  // member's PIN, and to clear a day (Reset Day uses this same code too,
+  // it has no passcode of its own anymore). Change it any time.
+  var MASTER_CODE = "2003";
+  // A separate, lower-stakes code — needed only to change/cancel a ticket
+  // someone ELSE sold while staying signed in under your own name. Kept
+  // apart from MASTER_CODE on purpose, so a seller who needs to fix a
+  // colleague's ticket doesn't need the same code that protects the staff
+  // list. Change it any time.
+  var TICKET_OVERRIDE_CODE = "0000";
   // "full" | "guest", remembered per device — but only for as long as
   // there's been recent activity. AUTH_ACTIVITY_KEY holds the timestamp of
   // the last tap/keypress/scroll; if too much time has passed since then
@@ -1407,6 +1412,8 @@
   var addStaffBtn = document.getElementById("addStaffBtn");
   var manageStaffError = document.getElementById("manageStaffError");
   var masterCodeModalOverlay = document.getElementById("masterCodeModalOverlay");
+  var masterCodeModalTitle = document.getElementById("masterCodeModalTitle");
+  var masterCodeModalLabel = document.getElementById("masterCodeModalLabel");
   var masterCodeModalBody = document.getElementById("masterCodeModalBody");
   var masterCodeInput = document.getElementById("masterCodeInput");
   var masterCodeError = document.getElementById("masterCodeError");
@@ -1638,22 +1645,38 @@
     else { closeSellerPage(); }
   }
 
-  // ---- Master code gate ----
-  // One shared small modal, reused for both "open Manage staff" and
-  // "change/cancel a ticket someone else sold" — whichever action asked
-  // for it runs once the correct code is typed.
-  var pendingMasterAction = null;
-  function requireMasterCode(bodyText, onSuccess){
-    pendingMasterAction = onSuccess;
+  // ---- Code gate (shared modal, two different codes) ----
+  // One small modal, reused for every code-gated action in the app —
+  // "open Manage staff", "change a staff member's PIN", and "change/cancel
+  // a ticket someone else sold". Which of the two codes (MASTER_CODE or
+  // TICKET_OVERRIDE_CODE) is being checked, and the wording shown, are set
+  // per call by requireMasterCode()/requireTicketOverrideCode() below —
+  // whichever action asked for it runs once the right code is typed.
+  var pendingCodeAction = null;
+  var pendingCodeValue = null;
+  var pendingCodeWrongMsg = null;
+  function requireCode(code, wrongMsg, titleText, labelText, bodyText, onSuccess){
+    pendingCodeAction = onSuccess;
+    pendingCodeValue = code;
+    pendingCodeWrongMsg = wrongMsg;
+    if(masterCodeModalTitle) masterCodeModalTitle.textContent = titleText;
+    if(masterCodeModalLabel) masterCodeModalLabel.textContent = labelText;
     masterCodeModalBody.textContent = bodyText;
     masterCodeInput.value = "";
     masterCodeError.textContent = "";
     masterCodeModalOverlay.hidden = false;
     masterCodeInput.focus();
   }
+  function requireMasterCode(bodyText, onSuccess){
+    requireCode(MASTER_CODE, "Incorrect master code.", "🔒 Master code needed", "Master code", bodyText, onSuccess);
+  }
+  function requireTicketOverrideCode(bodyText, onSuccess){
+    requireCode(TICKET_OVERRIDE_CODE, "Incorrect code.", "🔒 Code needed", "Code", bodyText, onSuccess);
+  }
   function closeMasterCodeModal(){
     masterCodeModalOverlay.hidden = true;
-    pendingMasterAction = null;
+    pendingCodeAction = null;
+    pendingCodeValue = null;
   }
   if(masterCodeCancelBtn) masterCodeCancelBtn.addEventListener("click", closeMasterCodeModal);
   if(masterCodeModalOverlay){
@@ -1662,15 +1685,16 @@
     });
   }
   function confirmMasterCode(){
-    if(masterCodeInput.value !== MASTER_CODE){
-      masterCodeError.textContent = "Incorrect master code.";
+    if(masterCodeInput.value !== pendingCodeValue){
+      masterCodeError.textContent = pendingCodeWrongMsg || "Incorrect code.";
       masterCodeInput.value = "";
       masterCodeInput.focus();
       return;
     }
-    var action = pendingMasterAction;
+    var action = pendingCodeAction;
     masterCodeModalOverlay.hidden = true;
-    pendingMasterAction = null;
+    pendingCodeAction = null;
+    pendingCodeValue = null;
     if(action) action();
   }
   if(masterCodeConfirmBtn) masterCodeConfirmBtn.addEventListener("click", confirmMasterCode);
@@ -1682,15 +1706,15 @@
   // The gate used before cancelling/changing an already-sold ticket: free
   // to proceed if this ticket has no recorded seller (an older ticket, sold
   // before this feature existed) or was sold by whoever's signed in right
-  // now — otherwise the master code is required, without switching who's
-  // signed in.
+  // now — otherwise the (separate, lower-stakes) ticket-override code is
+  // required, without switching who's signed in.
   function runIfOwnerOrMaster(ticket, action){
     if(!ticket || !ticket.soldBy || !currentSeller || ticket.soldBy === currentSeller.name){
       action();
       return;
     }
-    requireMasterCode(
-      ticket.soldBy + " sold this ticket. Enter the master code to make this change while staying signed in as " + currentSeller.name + ".",
+    requireTicketOverrideCode(
+      ticket.soldBy + " sold this ticket. Enter the code to make this change while staying signed in as " + currentSeller.name + ".",
       action
     );
   }
@@ -4097,9 +4121,8 @@
   // sandboxed frame, so the two-step reset warning is a small in-page
   // modal instead. Step 1 → Step 2 → only then does anything get cleared.
   // Third and final gate: even after both warnings are accepted, clearing a
-  // day only actually happens once this passcode is typed correctly — ask
-  // to change it any time, same as AUTH_PASS/GUEST_PASS above.
-  var RESET_PASSCODE = "0000";
+  // day only actually happens once the master code is typed correctly —
+  // Reset Day has no passcode of its own, it shares MASTER_CODE.
   var resetModalOverlay = document.getElementById("resetModalOverlay");
   var resetModalTitle = document.getElementById("resetModalTitle");
   var resetModalBody = document.getElementById("resetModalBody");
@@ -4150,8 +4173,8 @@
       resetModalBody.textContent = "Are you absolutely sure? Everything for " + dayLabel + " will be cleared right now and there is no way to get it back.";
       resetModalConfirm.textContent = "Yes, clear this day";
     } else {
-      resetModalTitle.textContent = "🔒 Enter passcode";
-      resetModalBody.textContent = "Type the reset passcode to finish clearing " + dayLabel + ".";
+      resetModalTitle.textContent = "🔒 Enter master code";
+      resetModalBody.textContent = "Type the master code to finish clearing " + dayLabel + ".";
       resetModalPasscode.value = "";
       resetModalPasscodeError.textContent = "";
       resetModalConfirm.textContent = "Clear this day";
@@ -4196,8 +4219,8 @@
     if(resetStep === 1){ showResetStep(2); }
     else if(resetStep === 2){ showResetStep(3); }
     else {
-      if(resetModalPasscode.value !== RESET_PASSCODE){
-        resetModalPasscodeError.textContent = "Incorrect passcode.";
+      if(resetModalPasscode.value !== MASTER_CODE){
+        resetModalPasscodeError.textContent = "Incorrect master code.";
         resetModalPasscode.value = "";
         resetModalPasscode.focus();
         return;
