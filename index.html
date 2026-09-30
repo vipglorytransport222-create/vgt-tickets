@@ -178,6 +178,14 @@
     justify-content:center; z-index:350; padding:16px;
   }
   .modal-overlay[hidden]{ display:none; }
+  /* The master-code prompt can now also open ON TOP of another already-open
+     modal (e.g. confirming "Change PIN" from inside the still-open Manage
+     Staff modal) rather than only ever appearing on its own. Both share the
+     .modal-overlay z-index, and #manageStaffModalOverlay comes later in the
+     markup, so without this it would render above the master-code modal and
+     swallow its clicks. Give the master-code modal its own higher layer so
+     it always wins that particular stacking fight. */
+  #masterCodeModalOverlay{ z-index:360; }
   .modal-box{
     background:var(--surface); color:var(--ink); border-radius:14px; max-width:400px; width:100%;
     padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.4); border:1px solid var(--border);
@@ -364,6 +372,24 @@
     font-size:.75rem; font-weight:700; color:var(--red); cursor:pointer;
   }
   .staff-row-remove:hover{ background:var(--red); color:#fff; border-color:var(--red); }
+  .staff-row-actions{ display:flex; align-items:center; gap:6px; }
+  .staff-row-changepin{
+    background:none; border:1px solid var(--border); border-radius:8px; padding:4px 9px;
+    font-size:.75rem; font-weight:700; color:var(--ink); cursor:pointer;
+  }
+  .staff-row-changepin:hover{ border-color:var(--gold); }
+  .staff-row-pin-input{
+    width:78px; border:1px solid var(--border); border-radius:8px; padding:4px 7px;
+    font-size:.8rem; font-variant-numeric:tabular-nums;
+  }
+  .staff-row-pin-save{
+    background:var(--good); border:1px solid var(--good); border-radius:8px; padding:4px 9px;
+    font-size:.75rem; font-weight:700; color:#fdf3e4; cursor:pointer;
+  }
+  .staff-row-pin-cancel{
+    background:none; border:1px solid var(--border); border-radius:8px; padding:4px 9px;
+    font-size:.75rem; font-weight:700; color:var(--muted); cursor:pointer;
+  }
 
   /* ---- panels ---- */
   .panel{
@@ -1670,6 +1696,11 @@
   }
 
   // ---- Manage staff (master-code gated) ----
+  // Which staff member (by name) currently has their PIN row swapped into
+  // edit mode — null when nobody is being edited. Changing a PIN is treated
+  // as its own sensitive action (its own master-code prompt), separate from
+  // the master code already used to open this modal in the first place.
+  var editingStaffPinFor = null;
   function renderManageStaffList(){
     if(!manageStaffModalBody) return;
     if(staffList.length === 0){
@@ -1677,10 +1708,23 @@
       return;
     }
     manageStaffModalBody.innerHTML = staffList.map(function(s){
+      if(editingStaffPinFor === s.name){
+        return '<div class="staff-row">' +
+          '<span class="staff-row-name">' + escapeHtml(s.name) + '</span>' +
+          '<input type="text" inputmode="numeric" autocomplete="off" maxlength="8" class="staff-row-pin-input" value="' + escapeHtml(s.pin) + '" data-name="' + escapeHtml(s.name) + '">' +
+          '<span class="staff-row-actions">' +
+            '<button type="button" class="staff-row-pin-save" data-name="' + escapeHtml(s.name) + '">Save</button>' +
+            '<button type="button" class="staff-row-pin-cancel">Cancel</button>' +
+          '</span>' +
+        '</div>';
+      }
       return '<div class="staff-row">' +
         '<span class="staff-row-name">' + escapeHtml(s.name) + '</span>' +
         '<span class="staff-row-pin">PIN ' + escapeHtml(s.pin) + '</span>' +
-        '<button type="button" class="staff-row-remove" data-name="' + escapeHtml(s.name) + '">Remove</button>' +
+        '<span class="staff-row-actions">' +
+          '<button type="button" class="staff-row-changepin" data-name="' + escapeHtml(s.name) + '">Change PIN</button>' +
+          '<button type="button" class="staff-row-remove" data-name="' + escapeHtml(s.name) + '">Remove</button>' +
+        '</span>' +
       '</div>';
     }).join("");
   }
@@ -1688,6 +1732,7 @@
     manageStaffError.textContent = "";
     newStaffName.value = "";
     newStaffPin.value = "";
+    editingStaffPinFor = null;
     renderManageStaffList();
     manageStaffModalOverlay.hidden = false;
   }
@@ -1697,11 +1742,17 @@
     });
   }
   if(manageStaffCloseBtn){
-    manageStaffCloseBtn.addEventListener("click", function(){ manageStaffModalOverlay.hidden = true; });
+    manageStaffCloseBtn.addEventListener("click", function(){
+      manageStaffModalOverlay.hidden = true;
+      editingStaffPinFor = null;
+    });
   }
   if(manageStaffModalOverlay){
     manageStaffModalOverlay.addEventListener("click", function(e){
-      if(e.target === manageStaffModalOverlay) manageStaffModalOverlay.hidden = true;
+      if(e.target === manageStaffModalOverlay){
+        manageStaffModalOverlay.hidden = true;
+        editingStaffPinFor = null;
+      }
     });
   }
   if(addStaffBtn){
@@ -1726,14 +1777,50 @@
   }
   if(manageStaffModalBody){
     manageStaffModalBody.addEventListener("click", function(e){
-      var btn = e.target.closest(".staff-row-remove");
-      if(!btn) return;
-      var name = btn.getAttribute("data-name");
-      staffList = staffList.filter(function(s){ return s.name !== name; });
-      saveStaffListLocal();
-      pushStaffList();
-      renderManageStaffList();
-      renderSellerList();
+      var removeBtn = e.target.closest(".staff-row-remove");
+      if(removeBtn){
+        var removeName = removeBtn.getAttribute("data-name");
+        staffList = staffList.filter(function(s){ return s.name !== removeName; });
+        saveStaffListLocal();
+        pushStaffList();
+        renderManageStaffList();
+        renderSellerList();
+        return;
+      }
+      var changePinBtn = e.target.closest(".staff-row-changepin");
+      if(changePinBtn){
+        var changeName = changePinBtn.getAttribute("data-name");
+        requireMasterCode("Enter the master code to change " + changeName + "'s PIN.", function(){
+          editingStaffPinFor = changeName;
+          renderManageStaffList();
+        });
+        return;
+      }
+      var cancelBtn = e.target.closest(".staff-row-pin-cancel");
+      if(cancelBtn){
+        editingStaffPinFor = null;
+        renderManageStaffList();
+        return;
+      }
+      var saveBtn = e.target.closest(".staff-row-pin-save");
+      if(saveBtn){
+        var saveName = saveBtn.getAttribute("data-name");
+        var saveRow = saveBtn.closest(".staff-row");
+        var input = saveRow ? saveRow.querySelector(".staff-row-pin-input") : null;
+        var newPin = input ? input.value.trim() : "";
+        if(!newPin){
+          manageStaffError.textContent = "Enter a PIN.";
+          if(input) input.focus();
+          return;
+        }
+        manageStaffError.textContent = "";
+        var s = staffList.find(function(x){ return x.name === saveName; });
+        if(s) s.pin = newPin;
+        saveStaffListLocal();
+        pushStaffList();
+        editingStaffPinFor = null;
+        renderManageStaffList();
+      }
     });
   }
 
